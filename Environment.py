@@ -6,7 +6,7 @@ import torch
 import zlib
 import random
 from transformers import AutoModel, AutoTokenizer
-
+from pathlib import Path
 
 class LTREnv(gym.Env):
     def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True):
@@ -133,48 +133,70 @@ class LTREnv(gym.Env):
             print("Ranking: {} Document Cid: {} Timestep: {}".format(i + 1, item, self.t))
 
 class LTREnvV2(LTREnv):
-    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True):
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False):
         super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=use_gpu)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(31, 1537), dtype=np.float32)
         self.all_embedding = []
+        self.caching = caching
     def reset(self):
         self.all_embedding = []
         return super(LTREnvV2, self).reset()
 
     def _LTREnv__get_observation(self):
         self.t += 1
+
         if len(self.all_embedding) == 0:
-            for row in self.filtered_df.iterrows():
-                report_data, code_data = row[1].report, row[1].file_content
-                report_token, code_token = self.tokenizer.batch_encode_plus([report_data], max_length=self.max_len,
-                                                                            pad_to_multiple_of=self.max_len,
-                                                                            truncation=True,
-                                                                            padding=True,
-                                                                            return_tensors='pt'), \
-                                           self.tokenizer.batch_encode_plus([self.decode(code_data)], max_length=self.max_len,
-                                                                            pad_to_multiple_of=self.max_len,
-                                                                            truncation=True,
-                                                                            padding=True,
-                                                                            return_tensors='pt')
-                report_output, code_output = self.model(**report_token.to(self.dev)), self.model(**code_token.to(self.dev))
-                report_embedding, code_embedding = self.reduce_dimension_by_mean_pooling(report_output.last_hidden_state,
-                                                                                         report_token['attention_mask']), \
-                                                   self.reduce_dimension_by_mean_pooling(code_output.last_hidden_state,
-                                                                                         code_token['attention_mask'])
-                final_rep = np.concatenate([report_embedding, code_embedding, [[0]]], axis=1)[0]
-                self.all_embedding.append(final_rep)
+            if not self.caching or not Path(".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
+                for row in self.filtered_df.iterrows():
+                    report_data, code_data = row[1].report, row[1].file_content
+                    report_token, code_token = self.tokenizer.batch_encode_plus([report_data], max_length=self.max_len,
+                                                                                pad_to_multiple_of=self.max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt'), \
+                                               self.tokenizer.batch_encode_plus([self.decode(code_data)], max_length=self.max_len,
+                                                                                pad_to_multiple_of=self.max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt')
+                    report_output, code_output = self.model(**report_token.to(self.dev)), self.model(**code_token.to(self.dev))
+                    report_embedding, code_embedding = self.reduce_dimension_by_mean_pooling(report_output.last_hidden_state,
+                                                                                             report_token['attention_mask']), \
+                                                       self.reduce_dimension_by_mean_pooling(code_output.last_hidden_state,
+                                                                                             code_token['attention_mask'])
+                    final_rep = np.concatenate([report_embedding, code_embedding, [[0]]], axis=1)[0]
+                    self.all_embedding.append(final_rep)
+                if self.caching:
+                    Path(".caching/").mkdir(parents=True, exist_ok=True)
+                    np.save(".caching/{}_all_embedding.npy".format(self.current_id), self.all_embedding)
+
+            else:
+                self.all_embedding = np.load(".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
         action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
-        temp_embedding = self.all_embedding
-        temp_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
-        stacked_rep = np.stack(temp_embedding)
-        stacked_rep[:, -1] = self.t
+        # temp_embedding = self.all_embedding
+        # temp_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
+        # stacked_rep = np.stack(temp_embedding)
+        # stacked_rep[:, -1] = self.t
+        self.all_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
+        stacked_rep = np.stack(self.all_embedding)
+        stacked_rep[action_index, -1] = self.t
         self.previous_obs = stacked_rep
         return stacked_rep
 
 if __name__ == "__main__":
+    from stable_baselines3 import DQN
     env = LTREnvV2(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
-                 tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512, use_gpu=False)
+                 tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512, use_gpu=False, caching=True)
     obs = env.reset()
-    for i in range(31):
-        obs, reward, done, info = env.step(i)
+    model = DQN("MlpPolicy", env, verbose=1)
+    model.learn(total_timesteps=100000)
+
+    obs = env.reset()
+    for i in range(100):
+        action, _states = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        print("Reward: {}".format(reward))
         env.render()
-    print(env)
+        if done:
+            obs = env.reset()
