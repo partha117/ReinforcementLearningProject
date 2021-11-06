@@ -5,6 +5,43 @@ import zlib
 import torch
 import pandas as pd
 from transformers import RobertaTokenizer, AutoModel, AutoTokenizer
+from stable_baselines3.common.buffers import ReplayBuffer
+from labml_nn.rl.dqn.replay_buffer import ReplayBuffer as PriorityReplayBuffer
+def get_priority_replay_buffer(buffer_size,env,alpha=0.6):
+    buffer = PriorityReplayBuffer(buffer_size,alpha=alpha)
+    current_size = 0
+    while current_size < buffer_size:
+        prev_obs = env.reset()
+        action_list = env.filtered_df['cid'].tolist()
+        # ToDo: one action already been picked at reset
+        for action_id in action_list:
+            action = env.filtered_df['cid'].tolist().index(action_id)
+            obs, reward, done, info = env.step(action)
+            buffer.add(obs=prev_obs, action=np.array([action]), reward=np.array([reward]), next_obs=obs, done=np.array([done]))
+            prev_obs = obs
+            current_size += 1
+            if done:
+                break
+    return buffer
+def get_replay_buffer(buffer_size, env,early_stop=None,device="cpu"):
+    buffer = ReplayBuffer(buffer_size,env.observation_space,env.action_space,device)
+    current_size = 0
+    while current_size < (early_stop if early_stop else buffer_size):
+        prev_obs = env.reset()
+        action_list = env.filtered_df['cid'].tolist()
+        # if random.random() > 0.4:
+        #     action_location = [i for i, item in enumerate(prev_obs[:, 0:1535]) if np.all(item == 0)]
+        #     action_list.remove(action_location)
+        # ToDo: one action already been picked at reset
+        for action_id in action_list:
+            action = env.filtered_df['cid'].tolist().index(action_id)
+            obs, reward, done, info = env.step(action)
+            buffer.add(prev_obs,obs,np.array([action]),np.array([reward]),np.array([done]),[info])
+            prev_obs = obs
+            current_size += 1
+            if done:
+                break
+    return buffer
 
 
 def compute_reward(t, picked, df):

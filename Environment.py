@@ -73,7 +73,8 @@ class LTREnv(gym.Env):
             return 0
         else:
             relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
-            return relevance / np.log2(self.t + 1) #if relevance == 1 else -np.log2(self.t + 1)
+            already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
+            return relevance / np.log2(self.t + 1) if already_picked else -np.log2(self.t + 1)
 
     def step(self, action):
         temp = self.filtered_df['cid'].tolist()[action]
@@ -95,10 +96,7 @@ class LTREnv(gym.Env):
 
     def __get_filtered_df(self):
         self.filtered_df = self.df[self.df["id"] == self.current_id].reset_index()
-        if hasattr(self, "caching") and getattr(self, "caching"):
-            self.filtered_df = self.filtered_df.sample(frac=1, random_state=13).reset_index(drop=True)
-        else:
-            self.filtered_df = self.filtered_df.sample(frac=1).reset_index(drop=True)
+        self.filtered_df = self.filtered_df.sample(frac=1, random_state=self.filtered_df['cid'].sum()).reset_index(drop=True)
 
     def __get_observation(self):
         self.t += 1
@@ -188,94 +186,20 @@ class LTREnvV2(LTREnv):
         return stacked_rep
 
 
-class NaivePrioritizedBuffer(object):
-    def __init__(self, capacity, prob_alpha=0.6):
-        self.prob_alpha = prob_alpha
-        self.capacity = capacity
-        self.buffer = []
-        self.pos = 0
-        self.priorities = np.zeros((capacity,), dtype=np.float32)
 
-    def add(self, state, next_state, action, reward, done,infos):
-        assert state.ndim == next_state.ndim
-        state = np.expand_dims(state, 0)
-        next_state = np.expand_dims(next_state, 0)
-
-        max_prio = self.priorities.max() if self.buffer else 1.0
-
-        if len(self.buffer) < self.capacity:
-            self.buffer.append((state, action, reward, next_state, done))
-        else:
-            self.buffer[self.pos] = (state, action, reward, next_state, done)
-
-        self.priorities[self.pos] = max_prio
-        self.pos = (self.pos + 1) % self.capacity
-
-    def sample(self, batch_size, beta=0.4):
-        if len(self.buffer) == self.capacity:
-            prios = self.priorities
-        else:
-            prios = self.priorities[:self.pos]
-
-        probs = prios ** self.prob_alpha
-        probs /= probs.sum()
-
-        indices = np.random.choice(len(self.buffer), batch_size, p=probs)
-        samples = [self.buffer[idx] for idx in indices]
-
-        total = len(self.buffer)
-        weights = (total * probs[indices]) ** (-beta)
-        weights /= weights.max()
-        weights = np.array(weights, dtype=np.float32)
-
-        batch = list(zip(*samples))
-        states = np.concatenate(batch[0])
-        actions = batch[1]
-        rewards = batch[2]
-        next_states = np.concatenate(batch[3])
-        dones = batch[4]
-
-        return states, actions, next_states, dones, rewards, indices, weights
-
-    def update_priorities(self, batch_indices, batch_priorities):
-        for idx, prio in zip(batch_indices, batch_priorities):
-            self.priorities[idx] = prio
-
-    def __len__(self):
-        return len(self.buffer)
-
-def get_replay_buffer(buffer_size,env,device="cpu",priority=False,alpha=0.6):
-    if not priority:
-        buffer = ReplayBuffer(buffer_size,env.observation_space,env.action_space,device)
-    else:
-        buffer = NaivePrioritizedBuffer(capacity=buffer_size,prob_alpha=alpha)
-    current_size = 0
-    while current_size < buffer_size:
-        prev_obs = env.reset()
-        action_list = env.filtered_df['cid'].sample(frac=1).tolist()
-        # ToDo: one action already been picked at reset
-        for action_id in action_list:
-            action = env.filtered_df['cid'].tolist().index(action_id)
-            obs, reward, done, info = env.step(action)
-            print(action, reward)
-            buffer.add(prev_obs,obs,np.array([action]),np.array([reward]),np.array([done]),[info])
-            prev_obs = obs
-            current_size += 1
-            if done:
-                break
-    return buffer
 if __name__ == "__main__":
     from stable_baselines3 import DQN
     from stable_baselines3.common.buffers import BaseBuffer, ReplayBuffer, ReplayBufferSamples
     env = LTREnvV2(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                  tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512, use_gpu=False, caching=True)
     obs = env.reset()
-    buff = get_replay_buffer(5000, env, device="cuda:0",priority=True)
-    buff.sample(30)
-    model = DQN("MlpPolicy", env, verbose=1, buffer_size=5000,)
-    model.learn(total_timesteps=100000)
-    Path("Models/RL").mkdir(parents=True, exist_ok=True)
-    model.save("Models/RL/DQN")
+    # buff = get_replay_buffer(5000, env)
+    # # buff = get_replay_buffer(5000, env, device="cuda:0",priority=True)
+    # samples = buff.sample(30)
+    # model = DQN("MlpPolicy", env, verbose=1, buffer_size=5000,)
+    # model.learn(total_timesteps=100000)
+    # Path("Models/RL").mkdir(parents=True, exist_ok=True)
+    # model.save("Models/RL/DQN")
     # print("Loading Model ...")
     # model = DQN.load("Models/RL/DQN")
     #
