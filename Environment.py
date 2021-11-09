@@ -9,13 +9,14 @@ from transformers import AutoModel, AutoTokenizer
 from pathlib import Path
 
 class LTREnv(gym.Env):
-    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True):
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, file_path=""):
         super(LTREnv, self).__init__()
         if use_gpu:
             self.dev = "cuda:0" if torch.cuda.is_available() else "cpu"
         else:
             self.dev = "cpu"
         self.current_file = None
+        self.file_path = file_path
         self.current_id = None
         self.df = None  # done
         self.sampled_id = None  # done
@@ -75,7 +76,11 @@ class LTREnv(gym.Env):
         else:
             relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
             already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
-            return relevance / np.log2(self.t + 1) if already_picked else -np.log2(self.t + 1)
+            if already_picked:
+                reward = relevance / np.log2(self.t + 1) if relevance == 1 else 1e-3
+            else:
+                reward = -np.log2(self.t + 1)
+            return reward
 
     def step(self, action):
         temp = self.filtered_df['cid'].tolist()[action]
@@ -92,7 +97,7 @@ class LTREnv(gym.Env):
             obs = self.previous_obs
             done = True # self.t == len(self.filtered_df)
             # ToDo: Check it
-            reward = -100
+            reward = -10
         return obs, reward, done, info
 
     def __get_filtered_df(self):
@@ -135,8 +140,8 @@ class LTREnv(gym.Env):
             print("Ranking: {} Document Cid: {} Timestep: {}".format(i + 1, item, self.t))
 
 class LTREnvV2(LTREnv):
-    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False):
-        super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=use_gpu)
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False, file_path=""):
+        super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=max_len, use_gpu=use_gpu, file_path=file_path)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
                                             shape=(31, 1537), dtype=np.float32)
         self.all_embedding = []
@@ -149,7 +154,7 @@ class LTREnvV2(LTREnv):
         self.t += 1
 
         if len(self.all_embedding) == 0:
-            if not self.caching or not Path(".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
+            if not self.caching or not Path(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
                 for row in self.filtered_df.iterrows():
                     report_data, code_data = row[1].report, row[1].file_content
                     report_token, code_token = self.tokenizer.batch_encode_plus([report_data], max_length=self.max_len,
@@ -170,11 +175,11 @@ class LTREnvV2(LTREnv):
                     final_rep = np.concatenate([report_embedding, code_embedding, [[0]]], axis=1)[0]
                     self.all_embedding.append(final_rep)
                 if self.caching:
-                    Path(".caching/").mkdir(parents=True, exist_ok=True)
-                    np.save(".caching/{}_all_embedding.npy".format(self.current_id), self.all_embedding)
+                    Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
+                    np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id), self.all_embedding)
 
             else:
-                self.all_embedding = np.load(".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
+                self.all_embedding = np.load(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
         action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
         # temp_embedding = self.all_embedding
         # temp_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])

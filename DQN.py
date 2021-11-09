@@ -1,5 +1,5 @@
 import random
-
+import pickle
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -101,15 +101,15 @@ def train_dqn(buffer, env, total_time_step=10000, sample_size=30, learning_rate=
     plt.show()
     return q_network
 
-def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=500, tau=0.3, epsilon=0.4):
+def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=500, tau=0.3, file_path =""):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     q_network = DoubleDQN(env=env).to(dev)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     target_q_network = DoubleDQN(env=env).to(dev)
     loss_accumulator = []
     window_loss_accumulator = []
-    reward_array = []
     episode_len_array = []
+    episode_reward = []
     pbar = tqdm(range(total_time_step))
     for e in pbar:
         done = False
@@ -117,17 +117,18 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
         hidden = [torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev),
                       torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev)]
         picked = []
+        reward_array = []
         # print("Episode: {}".format(e))
         # print("Average episode length: {}".format(np.array(episode_len_array).mean()))
         # print("Average reward: {}".format(np.array(reward_array).mean()))
-        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(reward_array).mean(), np.array(episode_len_array).mean()))
+        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(), np.array(episode_len_array).mean()))
         episode_len = 0
         while not done:
             episode_len += 1
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
             action, hidden = q_network(prev_obs, hidden)
-            if np.random.rand() <= np.max(0.05, 1.0/np.log(e)):
+            if np.random.rand() <= np.max([0.05, 1.0/np.log(e)]):
                 available = [item for item in range(env.action_space.n) if item not in picked]
                 action = random.sample(available, 1)[0]
                 picked.append(action)
@@ -155,16 +156,24 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                     for target_param, local_param in zip(target_q_network.parameters(),
                                                          q_network.parameters()):
                         target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+        episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
+    with open(file_path + "Episode_Reward.pickle", "w") as f:
+        pickle.dump(episode_reward, f)
+
+    with open(file_path + "Episode_Length.pickle", "w") as f:
+        pickle.dump(episode_len, f)
     return q_network
 
 
 
 
 if __name__ == "__main__":
-    env = LTREnvV2(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
+    file_path = "/project/def-m2nagapp/partha9/LTR/"
+    Path(file_path).mkdir(parents=True, exist_ok=True)
+    env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
-                   use_gpu=False, caching=True)
+                   use_gpu=False, caching=True, file_path=file_path)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -175,9 +184,9 @@ if __name__ == "__main__":
 
     # buffer = ReplayBuffer(8000,env.observation_space,env.action_space,"cpu")
     buffer = CustomBuffer(8000)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01)
-    Path("TrainedModels/").mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), "TrainedModels/DDQN.pt")
+    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01, file_path=file_path)
+    Path(file_path + "TrainedModels/").mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), file_path + "TrainedModels/DDQN.pt")
 
 
 
