@@ -83,7 +83,27 @@ def reduce_dimension_by_mean_pooling(embeddings, attention_mask, to_numpy=False)
     mean_pooled = summed / summed_mask
     return mean_pooled.numpy() if to_numpy else mean_pooled
 
-
+class CustomBuffer(object):
+    def __init__(self, buffer_length):
+        self.state = []
+        self.next_state = []
+        self.action = []
+        self.reward = []
+        self.done = []
+        self.info = []
+    def add(self, state, next_state, action, reward, done, info):
+        self.state.append(state)
+        self.next_state.append(next_state)
+        self.action.append(action)
+        self.reward.append(reward)
+        self.done.append(done)
+        self.info = self.info + info
+    def sample(self, size):
+        indices = np.random.choice(len(self.state), size)
+        state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
+        return torch.from_numpy(state), torch.from_numpy(action), torch.from_numpy(reward), torch.from_numpy(next_state), torch.from_numpy(done), info
+    def __len__(self):
+        return len(self.state)
 class State:
 
     def __init__(self, t, qid, picked, remaining, caching=False):

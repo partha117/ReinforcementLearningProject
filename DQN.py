@@ -1,3 +1,5 @@
+import random
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -9,6 +11,8 @@ from Environment import LTREnvV2
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
+from stable_baselines3.common.buffers import ReplayBuffer
+from Buffer import CustomBuffer
 
 class DoubleDQN(nn.Module):
     def __init__(self, env):
@@ -19,6 +23,7 @@ class DoubleDQN(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
+        self.lstm_hidden_space = 128
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
             return (size - (kernel_size - 1) - 1) // stride + 1
@@ -26,28 +31,33 @@ class DoubleDQN(nn.Module):
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
         linear_input_size = convw * convh * 32
-        self.lin_layer1 = nn.Linear(linear_input_size, 256)
-        self.lstm_layer = nn.LSTM(input_size=256, hidden_size=128, batch_first=True)
-        self.lin_layer2 = nn.Linear(128, env.action_space.n)
+        self.lin_layer1 = nn.Linear(linear_input_size, 128)
+        self.lstm = nn.LSTM(input_size=128, hidden_size=self.lstm_hidden_space, batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space, env.action_space.n)
 
-    def forward(self, x):
-        x = x.unsqueeze(1)
+    def forward(self, x, hidden=None):
+        x = x.unsqueeze(1) if x.dim() == 3 else x
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
         x = F.relu(self.lin_layer1(x))
+        x, (new_h, new_c) = self.lstm(x.unsqueeze(1), (hidden[0], hidden[1]))
+        # x = x.squeeze(0)
         x = self.lin_layer2(x)
-        return x
+        return x, [new_h, new_c]
 
 
-def run_one_iter(q_net, target_net, state, action, reward, next_state, done, optim, gamma):
-    current_Q_values = q_net(state).gather(1, action)
-    next_Q_values = target_net(next_state).detach()
+def run_one_iter(q_net, target_net, state, action, reward, next_state, done, optim, gamma, hiddens=None):
+    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    output, _ = q_net(state, hiddens)
+    current_Q_values = output.squeeze(1).gather(1, action)
+    next_Q_values, _ = target_net(next_state.type(torch.float), hiddens)
+    next_Q_values = next_Q_values.detach().squeeze(1)
     next_max_Q_value = torch.max(next_Q_values, dim=1).values
     next_max_Q_value = next_max_Q_value.view(next_Q_values.shape[0],1)
-    target_Q_value = reward + gamma * next_max_Q_value * (1 - done)
-    loss = torch.nn.MSELoss()(target_Q_value, current_Q_values)
+    target_Q_value = reward + gamma * next_max_Q_value * (1 - done.int())
+    loss = torch.nn.MSELoss()(target_Q_value.type(torch.float32), current_Q_values.type(torch.float32))
     loss = torch.sqrt(loss)
 
     # # clip the bellman error between [-1 , 1]
@@ -91,6 +101,65 @@ def train_dqn(buffer, env, total_time_step=10000, sample_size=30, learning_rate=
     plt.show()
     return q_network
 
+def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=500, tau=0.3, epsilon=0.4):
+    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    q_network = DoubleDQN(env=env).to(dev)
+    optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
+    target_q_network = DoubleDQN(env=env).to(dev)
+    loss_accumulator = []
+    window_loss_accumulator = []
+    reward_array = []
+    episode_len_array = []
+    pbar = tqdm(range(total_time_step))
+    for e in pbar:
+        done = False
+        prev_obs = env.reset()
+        hidden = [torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev),
+                      torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev)]
+        picked = []
+        # print("Episode: {}".format(e))
+        # print("Average episode length: {}".format(np.array(episode_len_array).mean()))
+        # print("Average reward: {}".format(np.array(reward_array).mean()))
+        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(reward_array).mean(), np.array(episode_len_array).mean()))
+        episode_len = 0
+        while not done:
+            episode_len += 1
+            prev_obs = torch.Tensor(prev_obs).to(dev)
+            prev_obs = prev_obs.unsqueeze(0)
+            action, hidden = q_network(prev_obs, hidden)
+            if np.random.rand() <= np.max(0.05, 1.0/np.log(e)):
+                available = [item for item in range(env.action_space.n) if item not in picked]
+                action = random.sample(available, 1)[0]
+                picked.append(action)
+            else:
+                max_action = torch.argmax(action)
+                action = max_action.detach().cpu().numpy()
+                picked.append(action)
+            obs, reward, done, info = env.step(action)
+            reward_array.append(reward)
+            info['hidden'] = [item.detach().cpu().numpy() for item in hidden]
+            buffer.add(prev_obs.detach().cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]), [info])
+            prev_obs = obs
+            # print("Episode length: {}".format(episode_len))
+            if len(buffer) > 200:
+                samples = buffer.sample(sample_size)
+                state, action, reward, next_state, batch_done, info = samples #samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
+                batch_hidden = torch.tensor(np.array([np.stack([np.array(item['hidden'][0]) for item in info],axis=2)[0], np.stack([np.array(item['hidden'][1]) for item in info],axis=2)[0]])).to(dev)
+                loss = run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
+                                    action=action.to(dev), reward=reward.to(dev),
+                                    next_state=next_state.to(dev), done=batch_done.to(dev), optim=optimizer, gamma=0.9,hiddens=batch_hidden)
+                loss_accumulator.append(loss.detach().cpu().numpy())
+                window_loss = np.array(loss_accumulator[-21:-1])
+                window_loss_accumulator.append(window_loss.mean())
+                if e % update_frequency == 0:
+                    for target_param, local_param in zip(target_q_network.parameters(),
+                                                         q_network.parameters()):
+                        target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+        episode_len_array.append(episode_len)
+    return q_network
+
+
+
 
 if __name__ == "__main__":
     env = LTREnvV2(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
@@ -98,10 +167,23 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    buffer = get_replay_buffer(8000, env, early_stop=5000, device="cpu")
-    model = train_dqn(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01)
+
+    # buffer = get_replay_buffer(8000, env, early_stop=5000, device="cpu")
+    # model = train_dqn(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01)
+    # Path("TrainedModels/").mkdir(parents=True, exist_ok=True)
+    # torch.save(model.state_dict(), "TrainedModels/DDQN.pt")
+
+    # buffer = ReplayBuffer(8000,env.observation_space,env.action_space,"cpu")
+    buffer = CustomBuffer(8000)
+    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01)
     Path("TrainedModels/").mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), "TrainedModels/DDQN.pt")
+    # torch.save(model.state_dict(), "TrainedModels/DDQN.pt")
+
+
+
+
+
+
     # model = DoubleDQN(env=env)
     # state_dict = torch.load("TrainedModels/DDQN.pt")
     # model.load_state_dict(state_dict=state_dict)

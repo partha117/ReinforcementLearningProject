@@ -55,6 +55,7 @@ class LTREnv(gym.Env):
         id_list = self.df.groupby('id')['cid'].count()
         id_list = id_list[id_list == int(self.action_space_dim)].index.to_list()
         id_list = self.df[(self.df['id'].isin(id_list)) & (self.df['match'] == 1)]['id'].unique().tolist()
+        random.seed(13)
         self.sampled_id = random.sample(id_list, min(len(id_list), self.report_count))
 
     def reset(self):
