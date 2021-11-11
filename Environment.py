@@ -28,7 +28,7 @@ class LTREnv(gym.Env):
         self.action_space_dim = action_space_dim
         self.action_space = spaces.Discrete(self.action_space_dim)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(1537,), dtype=np.float32)
+                                            shape=(1025,), dtype=np.float32)
 
         self.report_count = report_count
         self.previous_obs = None
@@ -45,8 +45,8 @@ class LTREnv(gym.Env):
     def reduce_dimension_by_mean_pooling(embeddings, attention_mask, to_numpy=False):
         mask = attention_mask.unsqueeze(-1).expand(embeddings.size()).float()
         masked_embeddings = embeddings.detach() * mask
-        summed = torch.sum(masked_embeddings, 1)
-        summed_mask = torch.clamp(mask.sum(1), min=1e-9)
+        summed = torch.sum(masked_embeddings, 2)
+        summed_mask = torch.clamp(mask.sum(2), min=1e-9)
         mean_pooled = summed / summed_mask
         return mean_pooled.numpy() if to_numpy else mean_pooled
 
@@ -97,7 +97,7 @@ class LTREnv(gym.Env):
             obs = self.previous_obs
             done = True # self.t == len(self.filtered_df)
             # ToDo: Check it
-            reward = -10
+            reward = -6
         return obs, reward, done, info
 
     def __get_filtered_df(self):
@@ -143,7 +143,7 @@ class LTREnvV2(LTREnv):
     def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False, file_path=""):
         super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=max_len, use_gpu=use_gpu, file_path=file_path)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(31, 1537), dtype=np.float32)
+                                            shape=(31, 1025), dtype=np.float32)
         self.all_embedding = []
         self.caching = caching
     def reset(self):
