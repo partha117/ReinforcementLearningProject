@@ -1,6 +1,7 @@
 import random
 import pickle
 import torch
+import os
 from torch import nn
 import torch.nn.functional as F
 import torchvision.transforms as T
@@ -112,7 +113,7 @@ def to_one_hot(array, max_size):
 
 
 def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=300,
-                      tau=0.03, file_path=""):
+                      tau=0.03, file_path="", save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     q_network = DoubleDQN(env=env).to(dev)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
@@ -180,16 +181,26 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                         target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
-    with open(file_path + "Episode_Reward.pickle", "wb") as f:
-        pickle.dump(episode_reward, f)
 
-    with open(file_path + "Episode_Length.pickle", "wb") as f:
-        pickle.dump(episode_len_array, f)
+        if e % save_frequency == 0:
+            save_num = e / save_frequency
+            if os.path.isfile(file_path + "dqn_model_{}.pt".format(save_num - 1)):
+               os.remove(file_path + "dqn_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "DQN_Episode_Reward.pickle"):
+               os.remove(file_path + "DQN_Episode_Reward.pickle")
+            if os.path.isfile(file_path + "DQN_Episode_Length.pickle"):
+               os.remove(file_path + "DQN_Episode_Length.pickle")
+            torch.save(q_network.state_dict(), file_path + "dqn_model_{}.pt".format(save_num))
+            with open(file_path + "DQN_Episode_Reward.pickle", "wb") as f:
+                pickle.dump(episode_reward, f)
+
+            with open(file_path + "DQN_Episode_Length.pickle", "wb") as f:
+                pickle.dump(episode_len_array, f)
     return q_network
 
 
 if __name__ == "__main__":
-    file_path = "/project/def-m2nagapp/partha9/LTR/"
+    file_path = ""# "/project/def-m2nagapp/partha9/LTR/"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
@@ -204,7 +215,7 @@ if __name__ == "__main__":
 
     # buffer = ReplayBuffer(8000,env.observation_space,env.action_space,"cpu")
     buffer = CustomBuffer(8000)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=7500, update_frequency=300,
+    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
     Path(file_path + "TrainedModels/").mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), file_path + "TrainedModels/DDQN.pt")
