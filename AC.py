@@ -165,10 +165,10 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
-    if len(glob.glob(file_path + "policy_model_*.pt")) > 0:
-        policy_model.load_state_dict(torch.load(glob.glob(file_path + "policy_model_*.pt")[0], map_location=dev))
-    if len(glob.glob(file_path + "value_model_*.pt")) > 0:
-        value_model.load_state_dict(torch.load(glob.glob(file_path + "value_model_*.pt")[0], map_location=dev))
+    # if len(glob.glob(file_path + "policy_model_*.pt")) > 0:
+    #     policy_model.load_state_dict(torch.load(glob.glob(file_path + "policy_model_*.pt")[0], map_location=dev))
+    # if len(glob.glob(file_path + "value_model_*.pt")) > 0:
+    #     value_model.load_state_dict(torch.load(glob.glob(file_path + "value_model_*.pt")[0], map_location=dev))
     policy_model = policy_model.to(dev)
     value_model = value_model.to(dev)
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
@@ -216,22 +216,27 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
             episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "policy_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "policy_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "value_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "value_model_{}.pt".format(save_num - 1))
-            torch.save(policy_model.state_dict(), file_path + "policy_model_{}.pt".format(save_num))
-            torch.save(value_model.state_dict(), file_path + "value_model_{}.pt".format(save_num))
+            if os.path.isfile(file_path + "AC_policy_model_{}.pt".format(save_num - 1)):
+               os.remove(file_path + "AC_policy_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "AC_value_model_{}.pt".format(save_num - 1)):
+               os.remove(file_path + "AC_value_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "AC_Episode_Reward.pickle"):
+               os.remove(file_path + "AC_Episode_Reward.pickle")
+            if os.path.isfile(file_path + "AC_Episode_Length.pickle"):
+               os.remove(file_path + "AC_Episode_Length.pickle")
 
-    with open(file_path + "Episode_Reward.pickle", "wb") as f:
-        pickle.dump(episode_reward, f)
+            torch.save(policy_model.state_dict(), file_path + "AC_policy_model_{}.pt".format(save_num))
+            torch.save(value_model.state_dict(), file_path + "AC_value_model_{}.pt".format(save_num))
 
-    with open(file_path + "Episode_Length.pickle", "wb") as f:
-        pickle.dump(episode_len_array, f)
+            with open(file_path + "AC_Episode_Reward.pickle", "wb") as f:
+                pickle.dump(episode_reward, f)
+
+            with open(file_path + "AC_Episode_Length.pickle", "wb") as f:
+                pickle.dump(episode_len_array, f)
     return policy_model, value_model
 
 if __name__ == "__main__":
-    file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
+    file_path = "/project/def-m2nagapp/partha9/LTR/"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
@@ -241,5 +246,3 @@ if __name__ == "__main__":
 
     buffer = CustomBuffer(8000)
     policy, value = train_actor_critic(total_time_step=7500, sample_size=64)
-    Path(file_path + "TrainedModels/").mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), file_path + "TrainedModels/DDQN.pt")
