@@ -237,7 +237,7 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
     return policy_model, value_model
 
 if __name__ == "__main__":
-    file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
+    file_path = "/project/def-m2nagapp/partha9/LTR/"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
