@@ -70,19 +70,23 @@ class LTREnv(gym.Env):
         self.remained.remove(self.picked[-1])
         return self.__get_observation()
 
-    def __calculate_reward(self):
+    def __calculate_reward(self, return_rr=False):
         if self.t == 0:
-            return 0
+            return 0, 0 if return_rr else 0, None
         else:
             relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
             already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
             if already_picked:
-                reward = relevance / np.log2(self.t + 1) if relevance == 1 else 1e-3
+                reward = (2.0 * relevance) / np.log2(self.t + 1) if relevance == 1 else 1e-3
             else:
                 reward = -np.log2(self.t + 1)
-            return reward
+            if return_rr:
+                positions = self.df[self.df['cid'].isin(self.picked)]['match'].to_numpy()
+                max_position = np.argmax(positions) + 1 if any(positions == 1) else -1
+                return reward, 1.0 / max_position
+            return reward, None
 
-    def step(self, action):
+    def step(self, action, return_rr=False):
         temp = self.filtered_df['cid'].tolist()[action]
         info = {"invalid": False}
         obs, reward, done = None, None, None
@@ -90,14 +94,18 @@ class LTREnv(gym.Env):
             self.picked.append(temp)
             self.remained.remove(temp)
             obs = self.__get_observation()
-            reward = self.__calculate_reward()
+            reward, rr = self.__calculate_reward(return_rr=return_rr)
             done = self.t == len(self.filtered_df)
         else:
             info['invalid'] = True
             obs = self.previous_obs
+            rr = -1
             done = True # self.t == len(self.filtered_df)
             # ToDo: Check it
             reward = -6
+
+        if return_rr:
+            return obs, reward, done, info, rr
         return obs, reward, done, info
 
     def __get_filtered_df(self):
@@ -172,7 +180,7 @@ class LTREnvV2(LTREnv):
                                                                                              report_token['attention_mask']), \
                                                        self.reduce_dimension_by_mean_pooling(code_output.last_hidden_state,
                                                                                              code_token['attention_mask'])
-                    final_rep = np.concatenate([report_embedding, code_embedding, [[0]]], axis=1)[0]
+                    final_rep = np.concatenate([report_embedding, code_embedding, [[1e-7]]], axis=1)[0]
                     self.all_embedding.append(final_rep)
                 if self.caching:
                     Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
