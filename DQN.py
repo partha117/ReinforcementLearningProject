@@ -217,26 +217,3 @@ if __name__ == "__main__":
     buffer = CustomBuffer(8000)
     model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
-    Path(file_path + "TrainedModels/").mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), file_path + "TrainedModels/DDQN.pt")
-
-    # model = DoubleDQN(env=env)
-    # state_dict = torch.load("TrainedModels/DDQN.pt")
-    # model.load_state_dict(state_dict=state_dict)
-    # done = False
-    # picked = []
-    # while not done:
-    #     q_values = model(torch.from_numpy(np.expand_dims(obs, axis=0)).float()).detach()
-    #     print(q_values)
-    #     max_indices = torch.argmax(q_values)
-    #     obs, reward, done, info = env.step(max_indices)
-    #     print("-----", reward)
-    # max_value = torch.max(q_values)
-    # max_indices = (q_values == max_value).nonzero(as_tuple=False)
-    # probable_step = None
-    # for item in max_indices:
-    #     if item[1] not in picked:
-    #         obs, reward, done, info = env.step(item[1])
-    #         picked.append(item[1])
-    #         break
-    # print(reward, picked)
