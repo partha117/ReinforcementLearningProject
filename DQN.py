@@ -207,13 +207,6 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-
-    # buffer = get_replay_buffer(8000, env, early_stop=5000, device="cpu")
-    # model = train_dqn(buffer=buffer, sample_size=64, env=env, total_time_step=5000, update_frequency=200,tau=0.01)
-    # Path("TrainedModels/").mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), "TrainedModels/DDQN.pt")
-
-    # buffer = ReplayBuffer(8000,env.observation_space,env.action_space,"cpu")
     buffer = CustomBuffer(8000)
     model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)

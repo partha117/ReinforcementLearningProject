@@ -213,8 +213,8 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
                 samples = buffer.sample(sample_size)
                 state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
                 update_params(samples=samples, value_net=value_model,policy_net=policy_model,policy_optimizer=optimizer_policy,value_optimizer=optimizer_value,gamma=0.99,tau=0.95,device=dev,l2_reg=1e-3)
-            episode_reward.append(np.array(reward_array).sum())
-            episode_len_array.append(episode_len)
+        episode_reward.append(np.array(reward_array).sum())
+        episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1)):
