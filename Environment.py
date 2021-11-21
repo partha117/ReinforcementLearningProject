@@ -193,7 +193,7 @@ class LTREnvV2(LTREnv):
         # temp_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
         # stacked_rep = np.stack(temp_embedding)
         # stacked_rep[:, -1] = self.t
-        self.all_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
+        self.all_embedding[action_index] = np.full_like(self.all_embedding[action_index], 1e-7, dtype=np.double)#np.zeros_like(self.all_embedding[action_index])
         stacked_rep = np.stack(self.all_embedding)
         stacked_rep[action_index, -1] = self.t
         self.previous_obs = stacked_rep
