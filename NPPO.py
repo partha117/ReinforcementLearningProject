@@ -99,7 +99,7 @@ class PolicyModel(nn.Module):
         return M, action_prob, {}
 
 
-def ppo_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_value_iternum, states, actions,
+def New_PPO_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_value_iternum, states, actions,
              returns, advantages, fixed_log_probs, clip_epsilon, l2_reg, batch_action, batch_hidden, batch_hidden_state_value_model):
     """update critic"""
     for _ in range(optim_value_iternum):
@@ -187,7 +187,7 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
                 states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind], already_picked[ind], \
                 hidden_states[:, :, ind, :], hidden_state_value_model[:, :, ind, :]
 
-            ppo_step(policy_net, value_net, policy_optimizer, value_optimizer, 1, states_b, actions_b, returns_b,
+            New_PPO_step(policy_net, value_net, policy_optimizer, value_optimizer, 1, states_b, actions_b, returns_b,
                      advantages_b, fixed_log_probs_b, clip_epsilon, l2_reg, batch_action=already_picked_b,
                      batch_hidden=hidden_states_b, batch_hidden_state_value_model=hidden_state_value_model_b)
 
@@ -244,28 +244,28 @@ def train_ppo(total_time_step, sample_size, save_frequency=30):
         episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "PPO_policy_model_{}.pt".format(save_num - 1)):
-                os.remove(file_path + "PPO_policy_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "PPO_value_model_{}.pt".format(save_num - 1)):
-                os.remove(file_path + "PPO_value_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "PPO_Episode_Reward.pickle"):
-                os.remove(file_path + "PPO_Episode_Reward.pickle")
-            if os.path.isfile(file_path + "PPO_Episode_Length.pickle"):
-                os.remove(file_path + "PPO_Episode_Length.pickle")
+            if os.path.isfile(file_path + "New_PPO_policy_model_{}.pt".format(save_num - 1)):
+                os.remove(file_path + "New_PPO_policy_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "New_PPO_value_model_{}.pt".format(save_num - 1)):
+                os.remove(file_path + "New_PPO_value_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "New_PPO_Episode_Reward.pickle"):
+                os.remove(file_path + "New_PPO_Episode_Reward.pickle")
+            if os.path.isfile(file_path + "New_PPO_Episode_Length.pickle"):
+                os.remove(file_path + "New_PPO_Episode_Length.pickle")
 
-            torch.save(policy_model.state_dict(), file_path + "PPO_policy_model_{}.pt".format(save_num))
-            torch.save(value_model.state_dict(), file_path + "PPO_value_model_{}.pt".format(save_num))
+            torch.save(policy_model.state_dict(), file_path + "New_PPO_policy_model_{}.pt".format(save_num))
+            torch.save(value_model.state_dict(), file_path + "New_PPO_value_model_{}.pt".format(save_num))
 
-            with open(file_path + "PPO_Episode_Reward.pickle", "wb") as f:
+            with open(file_path + "New_PPO_Episode_Reward.pickle", "wb") as f:
                 pickle.dump(episode_reward, f)
 
-            with open(file_path + "PPO_Episode_Length.pickle", "wb") as f:
+            with open(file_path + "New_PPO_Episode_Length.pickle", "wb") as f:
                 pickle.dump(episode_len_array, f)
     return policy_model, value_model
 
 
 if __name__ == "__main__":
-    file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
+    file_path = "/project/def-m2nagapp/partha9/LTR/"
     optim_batch_size = 32
     optim_epochs = 8
     Path(file_path).mkdir(parents=True, exist_ok=True)
