@@ -27,7 +27,7 @@ class ValueModel(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = convw * convh * 32 #+ env.action_space.n
+        linear_input_size = convw * convh * 32  # + env.action_space.n
         self.lin_layer2 = nn.Linear(linear_input_size, 1)
 
     def forward(self, x):
@@ -36,7 +36,7 @@ class ValueModel(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
-        #x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
+        # x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
         x = self.lin_layer2(x)
         return x
 
@@ -91,10 +91,9 @@ class PolicyModel(nn.Module):
         if torch.isnan(hidden[0]).any() or torch.isnan(hidden[1]).any():
             print("Here6")
         # return torch.softmax((x * actions), dim=-1), [new_h, new_c]
-        x = torch.softmax(x,dim=-1) * actions
-        x = x/x.sum()
+        x = torch.softmax(x, dim=-1) * actions
+        x = x / x.sum()
         return x, [new_h, new_c]
-
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden):
@@ -118,8 +117,10 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
 def to_device(device, *args):
     return [x.to(device) for x in args]
 
+
 def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model):
-    rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(torch.float), next_states.to(device).type(torch.float)
+    rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
+        torch.float), next_states.to(device).type(torch.float)
     advantages = rewards + (1.0 - masks) * gamma * value_model(next_states).detach() - value_model(states)
     return advantages
 
@@ -137,9 +138,11 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net)
 
     """perform TRPO update"""
-    a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages, batch_picked, batch_hidden)
+    a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
+             batch_picked, batch_hidden)
 
-def train_actor_critic(total_time_step,sample_size, save_frequency=30):
+
+def train_actor_critic(total_time_step, sample_size, save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
@@ -165,34 +168,36 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
-                                           dev).type(torch.float)
-            action, temp_hidden = policy_model(prev_obs,actions=temp_action, hidden=hidden)
+                dev).type(torch.float)
+            with torch.no_grad():
+                action, temp_hidden = policy_model(prev_obs, actions=temp_action, hidden=hidden)
             action = torch.distributions.Categorical(action).sample()
-            action = int(action[0][0].detach().cpu().numpy())
+            action = int(action[0][0].cpu().numpy())
             picked.append(action)
             obs, reward, done, info = env.step(action)
             reward_array.append(reward)
-            info['hidden'] = [item.detach().cpu().numpy() for item in hidden]
+            info['hidden'] = [item.cpu().numpy() for item in hidden]
             info['picked'] = picked
             hidden = temp_hidden
-            buffer.add(prev_obs.detach().cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
+            buffer.add(prev_obs.cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
         if len(buffer) > 200:
             samples = buffer.sample(sample_size)
-            update_params(samples=samples, value_net=value_model,policy_net=policy_model,policy_optimizer=optimizer_policy,value_optimizer=optimizer_value,gamma=0.99,device=dev)
+            update_params(samples=samples, value_net=value_model, policy_net=policy_model,
+                          policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1))
+                os.remove(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1))
             if os.path.isfile(file_path + "New_AC_value_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "New_AC_value_model_{}.pt".format(save_num - 1))
+                os.remove(file_path + "New_AC_value_model_{}.pt".format(save_num - 1))
             if os.path.isfile(file_path + "New_AC_Episode_Reward.pickle"):
-               os.remove(file_path + "New_AC_Episode_Reward.pickle")
+                os.remove(file_path + "New_AC_Episode_Reward.pickle")
             if os.path.isfile(file_path + "New_AC_Episode_Length.pickle"):
-               os.remove(file_path + "New_AC_Episode_Length.pickle")
+                os.remove(file_path + "New_AC_Episode_Length.pickle")
 
             torch.save(policy_model.state_dict(), file_path + "New_AC_policy_model_{}.pt".format(save_num))
             torch.save(value_model.state_dict(), file_path + "New_AC_value_model_{}.pt".format(save_num))
@@ -203,6 +208,7 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
             with open(file_path + "New_AC_Episode_Length.pickle", "wb") as f:
                 pickle.dump(episode_len_array, f)
     return policy_model, value_model
+
 
 if __name__ == "__main__":
     file_path = "/project/def-m2nagapp/partha9/LTR/"
