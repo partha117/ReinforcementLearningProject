@@ -140,7 +140,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             episode_len += 1
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
-            action, hidden = q_network(prev_obs,
+            action, temp_hidden = q_network(prev_obs,
                                        actions=torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
                                            dev).type(torch.float), hidden=hidden)
             if np.random.rand() <= np.max([0.05, 1.0 / np.log(e)]):
@@ -155,6 +155,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             reward_array.append(reward)
             info['hidden'] = [item.detach().cpu().numpy() for item in hidden]
             info['picked'] = picked
+            hidden = temp_hidden
             buffer.add(prev_obs.detach().cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs

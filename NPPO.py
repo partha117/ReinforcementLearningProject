@@ -1,9 +1,9 @@
-import glob
+import math
 import os
 from pathlib import Path
 from tqdm import tqdm
 import torch
-from torch import nn
+from torch import nn, LongTensor
 from Buffer import CustomBuffer
 from DQN import train_dqn_epsilon, to_one_hot
 from Environment import LTREnvV2
@@ -21,7 +21,7 @@ class ValueModel(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
-        self.lstm_hidden_space = 256
+        self.lstm_hidden_space = 128
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
             return (size - (kernel_size - 1) - 1) // stride + 1
@@ -53,7 +53,7 @@ class PolicyModel(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
-        self.lstm_hidden_space = 256
+        self.lstm_hidden_space = 128
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
             return (size - (kernel_size - 1) - 1) // stride + 1
@@ -90,6 +90,7 @@ class PolicyModel(nn.Module):
 
     def get_log_prob(self, x, current_action, actions, hidden=None):
         action_prob, _ = self.forward(x, actions, hidden)
+        current_action = current_action.type(torch.int64)
         return torch.log(action_prob.squeeze(1).gather(1, current_action))
 
     def get_fim(self, x, actions, hidden=None):
@@ -98,22 +99,27 @@ class PolicyModel(nn.Module):
         return M, action_prob, {}
 
 
-def a2c_step(policy_net, value_net, optimizer_policy, optimizer_value, states, actions, returns, advantages, l2_reg, batch_picked, batch_hidden, batch_hidden_states_value_model):
+def ppo_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_value_iternum, states, actions,
+             returns, advantages, fixed_log_probs, clip_epsilon, l2_reg, batch_action, batch_hidden, batch_hidden_state_value_model):
     """update critic"""
-    values_pred, _ = value_net(states, actions=batch_picked, hidden=batch_hidden_states_value_model)
-    value_loss = (values_pred.view(-1,1) - returns).pow(2).mean()
-    # weight decay
-    for param in value_net.parameters():
-        value_loss += param.pow(2).sum() * l2_reg
-    optimizer_value.zero_grad()
-    value_loss.backward()
-    optimizer_value.step()
+    for _ in range(optim_value_iternum):
+        values_pred, _ = value_net(states, actions=batch_action, hidden=batch_hidden_state_value_model)
+        value_loss = (values_pred - returns).pow(2).mean()
+        # weight decay
+        for param in value_net.parameters():
+            value_loss += param.pow(2).sum() * l2_reg
+        optimizer_value.zero_grad()
+        value_loss.backward()
+        optimizer_value.step()
 
     """update policy"""
-    log_probs = policy_net.get_log_prob(states, current_action=actions, actions=batch_picked, hidden=batch_hidden)
-    policy_loss = -(log_probs * advantages).mean()
+    log_probs = policy_net.get_log_prob(states, current_action=actions, actions=batch_action, hidden=batch_hidden)
+    ratio = torch.exp(log_probs - fixed_log_probs)
+    surr1 = ratio * advantages
+    surr2 = torch.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * advantages
+    policy_surr = -torch.min(surr1, surr2).mean()
     optimizer_policy.zero_grad()
-    policy_loss.backward()
+    policy_surr.backward()
     torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 40)
     optimizer_policy.step()
 
@@ -144,34 +150,51 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     return advantages, returns
 
 
-def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, tau, device, l2_reg):
+def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, tau, device, l2_reg,
+                  clip_epsilon):
     state, action, reward, next_state, done, info = samples
+    state, action = state.type(torch.float).to(dev), action.type(torch.float).to(dev)
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
-    batch_hidden_states_value_model = torch.tensor(np.array(
-        [np.stack([np.array(item['hidden_states_value_model'][0]) for item in info], axis=2)[0],
-         np.stack([np.array(item['hidden_states_value_model'][1]) for item in info], axis=2)[0]])).to(device)
     batch_picked = torch.tensor(
         [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(device).type(
         torch.float)
+    batch_hidden_state_value_model = torch.tensor(np.array(
+        [np.stack([np.array(item['hidden_state_value_model'][0]) for item in info], axis=2)[0],
+         np.stack([np.array(item['hidden_state_value_model'][1]) for item in info], axis=2)[0]])).to(device)
+
     with torch.no_grad():
-        values, _ = value_net(state.type(torch.float).to(device),actions=batch_picked, hidden=batch_hidden_states_value_model)
-
+        values, _ = value_net(state, actions=batch_picked, hidden=batch_hidden_state_value_model)
+        fixed_log_probs = policy_net.get_log_prob(state, current_action=action, actions=batch_picked,
+                                                  hidden=batch_hidden)
     """get advantage estimation from the trajectories"""
-    advantages, returns = estimate_advantages(reward, done, values.view(-1,1), gamma, tau, device)
+    advantages, returns = estimate_advantages(reward, done, values.view(-1, 1), gamma, tau, device)
 
-    """perform TRPO update"""
-    a2c_step(policy_net, value_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), action.to(device), returns, advantages, l2_reg, batch_picked, batch_hidden, batch_hidden_states_value_model)
+    """perform mini-batch PPO update"""
+    optim_iter_num = int(math.ceil(state.shape[0] / optim_batch_size))
+    for _ in range(optim_epochs):
+        perm = np.arange(state.shape[0])
+        np.random.shuffle(perm)
 
-def train_actor_critic(total_time_step,sample_size, save_frequency=30):
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+        states, actions, returns, advantages, fixed_log_probs, already_picked, hidden_states, hidden_state_value_model = \
+            state[perm].clone(), action[perm].clone(), returns[perm].clone(), advantages[perm].clone(), \
+            fixed_log_probs[perm].clone(), batch_picked[perm].clone(), batch_hidden[:, :, perm, :].clone(), batch_hidden_state_value_model[:, :, perm, :].clone()
+
+        for i in range(optim_iter_num):
+            ind = slice(i * optim_batch_size, min((i + 1) * optim_batch_size, states.shape[0]))
+            states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b, already_picked_b, hidden_states_b, hidden_state_value_model_b = \
+                states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind], already_picked[ind], \
+                hidden_states[:, :, ind, :], hidden_state_value_model[:, :, ind, :]
+
+            ppo_step(policy_net, value_net, policy_optimizer, value_optimizer, 1, states_b, actions_b, returns_b,
+                     advantages_b, fixed_log_probs_b, clip_epsilon, l2_reg, batch_action=already_picked_b,
+                     batch_hidden=hidden_states_b, batch_hidden_state_value_model=hidden_state_value_model_b)
+
+
+def train_ppo(total_time_step, sample_size, save_frequency=30):
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
-    # if len(glob.glob(file_path + "policy_model_*.pt")) > 0:
-    #     policy_model.load_state_dict(torch.load(glob.glob(file_path + "policy_model_*.pt")[0], map_location=dev))
-    # if len(glob.glob(file_path + "value_model_*.pt")) > 0:
-    #     value_model.load_state_dict(torch.load(glob.glob(file_path + "value_model_*.pt")[0], map_location=dev))
     policy_model = policy_model.to(dev)
     value_model = value_model.to(dev)
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
@@ -184,8 +207,8 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
         prev_obs = env.reset()
         hidden = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
-        hidden_states_value_model = [torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev),
-                  torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev)]
+        hidden_state_value_model = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
+                  torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
         pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
@@ -196,50 +219,55 @@ def train_actor_critic(total_time_step,sample_size, save_frequency=30):
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
-                                           dev).type(torch.float)
-            action, temp_hidden = policy_model.select_action(prev_obs,actions=temp_action, hidden=hidden)
-            _, temp_hidden_states_value_model = value_model(prev_obs, actions=temp_action, hidden=hidden_states_value_model )
+                dev).type(torch.float)
+            action, temp_hidden = policy_model.select_action(prev_obs, actions=temp_action, hidden=hidden)
+            _, temp_hidden_state_value_model = value_model(prev_obs, actions=temp_action, hidden=hidden_state_value_model)
+            temp_hidden_state_value_model = hidden_state_value_model
             action = int(action[0][0].detach().cpu().numpy())
             picked.append(action)
             obs, reward, done, info = env.step(action)
             reward_array.append(reward)
             info['hidden'] = [item.detach().cpu().numpy() for item in hidden]
-            info['hidden_states_value_model'] = [item.detach().cpu().numpy() for item in hidden_states_value_model]
             info['picked'] = picked
+            info['hidden_state_value_model'] = [item.detach().cpu().numpy() for item in hidden_state_value_model]
             hidden = temp_hidden
-            hidden_states_value_model = temp_hidden_states_value_model
+            hidden_state_value_model = temp_hidden_state_value_model
             buffer.add(prev_obs.detach().cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-            if len(buffer) > 200:
+            if len(buffer) > 400:
                 samples = buffer.sample(sample_size)
-                state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
-                update_params(samples=samples, value_net=value_model,policy_net=policy_model,policy_optimizer=optimizer_policy,value_optimizer=optimizer_value,gamma=0.99,tau=0.95,device=dev,l2_reg=1e-3)
+                update_params(samples=samples, value_net=value_model, policy_net=policy_model,
+                              policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, tau=0.95,
+                              device=dev, l2_reg=1e-3, clip_epsilon=0.2)
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "New_AC_value_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "New_AC_value_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "New_AC_Episode_Reward.pickle"):
-               os.remove(file_path + "New_AC_Episode_Reward.pickle")
-            if os.path.isfile(file_path + "New_AC_Episode_Length.pickle"):
-               os.remove(file_path + "New_AC_Episode_Length.pickle")
+            if os.path.isfile(file_path + "PPO_policy_model_{}.pt".format(save_num - 1)):
+                os.remove(file_path + "PPO_policy_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "PPO_value_model_{}.pt".format(save_num - 1)):
+                os.remove(file_path + "PPO_value_model_{}.pt".format(save_num - 1))
+            if os.path.isfile(file_path + "PPO_Episode_Reward.pickle"):
+                os.remove(file_path + "PPO_Episode_Reward.pickle")
+            if os.path.isfile(file_path + "PPO_Episode_Length.pickle"):
+                os.remove(file_path + "PPO_Episode_Length.pickle")
 
-            torch.save(policy_model.state_dict(), file_path + "New_AC_policy_model_{}.pt".format(save_num))
-            torch.save(value_model.state_dict(), file_path + "New_AC_value_model_{}.pt".format(save_num))
+            torch.save(policy_model.state_dict(), file_path + "PPO_policy_model_{}.pt".format(save_num))
+            torch.save(value_model.state_dict(), file_path + "PPO_value_model_{}.pt".format(save_num))
 
-            with open(file_path + "New_AC_Episode_Reward.pickle", "wb") as f:
+            with open(file_path + "PPO_Episode_Reward.pickle", "wb") as f:
                 pickle.dump(episode_reward, f)
 
-            with open(file_path + "New_AC_Episode_Length.pickle", "wb") as f:
+            with open(file_path + "PPO_Episode_Length.pickle", "wb") as f:
                 pickle.dump(episode_len_array, f)
     return policy_model, value_model
 
+
 if __name__ == "__main__":
-    file_path = "/project/def-m2nagapp/partha9/LTR/"
+    file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
+    optim_batch_size = 32
+    optim_epochs = 8
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
@@ -248,4 +276,4 @@ if __name__ == "__main__":
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     buffer = CustomBuffer(8000)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=64)
+    policy, value = train_ppo(total_time_step=7500, sample_size=128)
