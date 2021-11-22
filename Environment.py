@@ -66,8 +66,8 @@ class LTREnv(gym.Env):
         self.picked = []
         self.remained = self.filtered_df['cid'].tolist()
         self.t = 0
-        self.picked.append(random.sample(self.remained, 1)[0])
-        self.remained.remove(self.picked[-1])
+        # self.picked.append(random.sample(self.remained, 1)[0])
+        # self.remained.remove(self.picked[-1])
         return self.__get_observation()
 
     def __calculate_reward(self, return_rr=False):
@@ -113,6 +113,7 @@ class LTREnv(gym.Env):
         self.filtered_df = self.filtered_df.sample(frac=1, random_state=self.filtered_df['cid'].sum()).reset_index(drop=True)
 
     def __get_observation(self):
+        #ToDO: This will not be worked
         self.t += 1
         report_data, code_data = self.df[
                                      (self.df['cid'] == self.picked[-1]) & (self.df['id'] == self.current_id)].report, \
@@ -188,14 +189,13 @@ class LTREnvV2(LTREnv):
 
             else:
                 self.all_embedding = np.load(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
-        action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
-        # temp_embedding = self.all_embedding
-        # temp_embedding[action_index] = np.zeros_like(self.all_embedding[action_index])
-        # stacked_rep = np.stack(temp_embedding)
-        # stacked_rep[:, -1] = self.t
-        self.all_embedding[action_index] = np.full_like(self.all_embedding[action_index], 0, dtype=np.double)#np.zeros_like(self.all_embedding[action_index])
-        stacked_rep = np.stack(self.all_embedding)
-        stacked_rep[action_index, -1] = self.t
+        if len(self.picked) > 0:
+            action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
+            self.all_embedding[action_index] = np.full_like(self.all_embedding[action_index], 0, dtype=np.double)#np.zeros_like(self.all_embedding[action_index])
+            stacked_rep = np.stack(self.all_embedding)
+            stacked_rep[action_index, -1] = self.t
+        else:
+            stacked_rep = np.stack(self.all_embedding)
         self.previous_obs = stacked_rep
         return stacked_rep
 

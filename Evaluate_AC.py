@@ -26,7 +26,7 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path)
 
     model = NewPolicyModel(env=env)
-    state_dict = torch.load("Models/AC/New_AC_policy_model_81.0.pt")
+    state_dict = torch.load("New_AC_policy_model_16.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
@@ -42,7 +42,8 @@ if __name__ == "__main__":
             prev_actions = torch.from_numpy(prev_actions).to(dev).type(torch.float)
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
             hidden = [item.to(dev).type(torch.float) for item in hidden]
-            action, hidden = model.select_action(x=prev_obs, actions=prev_actions, hidden=hidden)
+            action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
+            action = torch.distributions.Categorical(action).sample()
             action = int(action[0][0].detach().cpu().numpy())
             prev_obs, reward, done, info, rr = env.step(action, return_rr=True)
             picked.append(action)
@@ -51,3 +52,4 @@ if __name__ == "__main__":
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     print(all_rr.mean(), len(all_rr))
+    print(all_rr)

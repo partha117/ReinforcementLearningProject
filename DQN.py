@@ -25,7 +25,7 @@ class DoubleDQN(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
-        self.lstm_hidden_space = 256
+        self.lstm_hidden_space = 128
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
             return (size - (kernel_size - 1) - 1) // stride + 1
@@ -63,17 +63,9 @@ def run_one_iter(q_net, target_net, state, action, reward, next_state, done, opt
     loss = torch.nn.MSELoss()(target_Q_value.type(torch.float32), current_Q_values.type(torch.float32))
     loss = torch.sqrt(loss)
 
-    # # clip the bellman error between [-1 , 1]
-    # clipped_bellman_error = bellman_error.clamp(-1, 1)
-    # # Note: clipped_bellman_delta * -1 will be right gradient
-    # d_error = clipped_bellman_error * -1.0
-    # Clear previous gradients before backward pass
     optim.zero_grad()
     loss.backward()
     optim.step()
-    # for target_param, local_param in zip(target_model.parameters(),
-    #                                      local_model.parameters()):
-    #     target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
     return loss
 
 
@@ -83,9 +75,6 @@ def train_dqn(buffer, env, total_time_step=10000, sample_size=30, learning_rate=
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     target_q_network = DoubleDQN(env=env).to(dev)
     loss_accumulator = []
-    window_loss_accumulator = []
-    reward_accumulator = []
-    window_reward_accumulator = []
     for iter_no in tqdm(range(total_time_step)):
         samples = buffer.sample(sample_size)
         state, action, reward, next_state, done = samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones
@@ -93,16 +82,11 @@ def train_dqn(buffer, env, total_time_step=10000, sample_size=30, learning_rate=
                             reward=reward.to(dev),
                             next_state=next_state.to(dev), done=done.to(dev), optim=optimizer, gamma=0.9)
         loss_accumulator.append(loss.detach().cpu().numpy())
-        # test_q_value = q_network(state).detach()
-        window_loss = np.array(loss_accumulator[-21:-1])
-        window_loss_accumulator.append(window_loss.mean())
         if iter_no % update_frequency == 0:
             for target_param, local_param in zip(target_q_network.parameters(),
                                                  q_network.parameters()):
                 target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
 
-    plt.plot(window_loss_accumulator)
-    plt.show()
     return q_network
 
 
@@ -118,8 +102,6 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
     q_network = DoubleDQN(env=env).to(dev)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     target_q_network = DoubleDQN(env=env).to(dev)
-    loss_accumulator = []
-    window_loss_accumulator = []
     episode_len_array = []
     episode_reward = []
     pbar = tqdm(range(total_time_step))
@@ -130,9 +112,6 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                   torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
-        # print("Episode: {}".format(e))
-        # print("Average episode length: {}".format(np.array(episode_len_array).mean()))
-        # print("Average reward: {}".format(np.array(reward_array).mean()))
         pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
                                                                      np.array(episode_len_array).mean()))
         episode_len = 0
@@ -140,9 +119,10 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             episode_len += 1
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
-            action, temp_hidden = q_network(prev_obs,
-                                       actions=torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
-                                           dev).type(torch.float), hidden=hidden)
+            with torch.no_grad():
+                action, temp_hidden = q_network(prev_obs,
+                                           actions=torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
+                                               dev).type(torch.float), hidden=hidden)
             if np.random.rand() <= np.max([0.05, 1.0 / np.log(e)]):
                 available = [item for item in range(env.action_space.n) if item not in picked]
                 action = random.sample(available, 1)[0]
@@ -173,13 +153,10 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             batch_picked = torch.tensor(
                 [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(dev).type(
                 torch.float)
-            loss = run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
+            run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
                                 action=action.to(dev), reward=reward.to(dev),
                                 next_state=next_state.to(dev), done=batch_done.to(dev), optim=optimizer, gamma=0.9,
                                 hiddens=batch_hidden, picked=batch_picked)
-            loss_accumulator.append(loss.detach().cpu().numpy())
-            window_loss = np.array(loss_accumulator[-21:-1])
-            window_loss_accumulator.append(window_loss.mean())
             if e % update_frequency == 0:
                 for target_param, local_param in zip(target_q_network.parameters(),
                                                      q_network.parameters()):
