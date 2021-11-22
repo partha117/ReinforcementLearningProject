@@ -3,6 +3,7 @@ import pickle
 from tqdm import tqdm
 import torch
 from AC import PolicyModel, to_one_hot
+from NAC import PolicyModel as NewPolicyModel
 import os
 from torch import nn
 import torch.nn.functional as F
@@ -24,8 +25,8 @@ if __name__ == "__main__":
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
 
-    model = PolicyModel(env=env)
-    state_dict = torch.load("Models/AC/AC_policy_model_101.0.pt")
+    model = NewPolicyModel(env=env)
+    state_dict = torch.load("Models/AC/New_AC_policy_model_81.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []

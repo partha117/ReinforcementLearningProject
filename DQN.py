@@ -148,8 +148,12 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                 action = random.sample(available, 1)[0]
                 picked.append(action)
             else:
+                action = action.cpu()
+                action[0][
+                    ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
+                    action) - 3
                 max_action = torch.argmax(action)
-                action = int(max_action.detach().cpu().numpy())
+                action = int(max_action.detach().numpy())
                 picked.append(action)
             obs, reward, done, info = env.step(action)
             reward_array.append(reward)
@@ -160,26 +164,26 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                        [info])
             prev_obs = obs
             # print("Episode length: {}".format(episode_len))
-            if len(buffer) > 200:
-                samples = buffer.sample(sample_size)
-                state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
-                batch_hidden = torch.tensor(np.array(
-                    [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
-                     np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(dev)
-                batch_picked = torch.tensor(
-                    [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(dev).type(
-                    torch.float)
-                loss = run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
-                                    action=action.to(dev), reward=reward.to(dev),
-                                    next_state=next_state.to(dev), done=batch_done.to(dev), optim=optimizer, gamma=0.9,
-                                    hiddens=batch_hidden, picked=batch_picked)
-                loss_accumulator.append(loss.detach().cpu().numpy())
-                window_loss = np.array(loss_accumulator[-21:-1])
-                window_loss_accumulator.append(window_loss.mean())
-                if e % update_frequency == 0:
-                    for target_param, local_param in zip(target_q_network.parameters(),
-                                                         q_network.parameters()):
-                        target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+        if len(buffer) > 200:
+            samples = buffer.sample(sample_size)
+            state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
+            batch_hidden = torch.tensor(np.array(
+                [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
+                 np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(dev)
+            batch_picked = torch.tensor(
+                [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(dev).type(
+                torch.float)
+            loss = run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
+                                action=action.to(dev), reward=reward.to(dev),
+                                next_state=next_state.to(dev), done=batch_done.to(dev), optim=optimizer, gamma=0.9,
+                                hiddens=batch_hidden, picked=batch_picked)
+            loss_accumulator.append(loss.detach().cpu().numpy())
+            window_loss = np.array(loss_accumulator[-21:-1])
+            window_loss_accumulator.append(window_loss.mean())
+            if e % update_frequency == 0:
+                for target_param, local_param in zip(target_q_network.parameters(),
+                                                     q_network.parameters()):
+                    target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
 
