@@ -120,7 +120,7 @@ def to_device(device, *args):
 
 def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model):
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(torch.float), next_states.to(device).type(torch.float)
-    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states) - value_model(states)
+    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states).detach() - value_model(states)
     return advantages
 
 
