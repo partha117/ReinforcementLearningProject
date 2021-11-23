@@ -1,5 +1,6 @@
 import random
 import pickle
+import psutil
 import torch
 import os
 from torch import nn
@@ -112,8 +113,10 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                   torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
-        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
-                                                                     np.array(episode_len_array).mean()))
+        pbar.set_description("Avg. reward {} Avg. episode {} Mem: {}".format(np.array(episode_reward).mean(),
+                                                                             np.array(episode_len_array).mean(),
+                                                                             psutil.Process(
+                                                                                 os.getpid()).memory_info().rss / 1024 ** 2))
         episode_len = 0
         while not done:
             episode_len += 1
