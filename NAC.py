@@ -219,5 +219,5 @@ if __name__ == "__main__":
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-    buffer = CustomBuffer(8000)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=64)
+    buffer = CustomBuffer(6000)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=128)

@@ -26,7 +26,7 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path)
 
     model = NewPolicyModel(env=env)
-    state_dict = torch.load("New_AC_policy_model_16.0.pt")
+    state_dict = torch.load("New_AC_policy_model_8.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
