@@ -77,7 +77,7 @@ class LTREnv(gym.Env):
             relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
             already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
             if already_picked:
-                reward = (2.0 * relevance) / np.log2(self.t + 1) if relevance == 1 else 1e-3
+                reward = (3.0 * relevance) / np.log2(self.t + 1) if relevance == 1 else 0
             else:
                 reward = -np.log2(self.t + 1)
             if return_rr:

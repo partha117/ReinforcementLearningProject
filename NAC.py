@@ -131,8 +131,8 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
-    batch_picked = torch.tensor(
-        [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(device).type(
+    batch_picked = torch.tensor(np.array(
+        [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(device).type(
         torch.float)
 
     """get advantage estimation from the trajectories"""
@@ -147,6 +147,12 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
+    if prev_policy_model_path is not None:
+        state_dict = torch.load(prev_policy_model_path)
+        policy_model.load_state_dict(state_dict=state_dict)
+    if prev_value_model_path is not None:
+        state_dict = torch.load(prev_value_model_path)
+        value_model.load_state_dict(state_dict=state_dict)
     policy_model = policy_model.to(dev)
     value_model = value_model.to(dev)
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
@@ -217,9 +223,11 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
 if __name__ == "__main__":
     file_path = "/project/def-m2nagapp/partha9/LTR/"
     cache_path = "/scratch/partha9/.buffer_cache_ac"
+    prev_policy_model_path = "/project/def-m2nagapp/partha9/LTR/New_AC_policy_model_66.0.pt"
+    prev_value_model_path = "/project/def-m2nagapp/partha9/LTR/New_AC_value_model_66.0.pt"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"

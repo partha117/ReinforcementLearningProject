@@ -101,8 +101,15 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                       tau=0.03, file_path="", save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     q_network = DoubleDQN(env=env).to(dev)
-    optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     target_q_network = DoubleDQN(env=env).to(dev)
+    if prev_model_path is not None:
+        state_dict = torch.load(prev_model_path)
+        q_network.load_state_dict(state_dict=state_dict)
+        for target_param, local_param in zip(target_q_network.parameters(),
+                                             q_network.parameters()):
+            target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+
+    optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     episode_len_array = []
     episode_reward = []
     pbar = tqdm(range(total_time_step))
@@ -155,8 +162,8 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             batch_hidden = torch.tensor(np.array(
                 [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
                  np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(dev)
-            batch_picked = torch.tensor(
-                [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info]).to(dev).type(
+            batch_picked = torch.tensor(np.array(
+                [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(dev).type(
                 torch.float)
             run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
                                 action=action.to(dev), reward=reward.to(dev),
@@ -189,9 +196,10 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
 if __name__ == "__main__":
     file_path = "/project/def-m2nagapp/partha9/LTR/"
     cache_path = "/scratch/partha9/.buffer_cache_dqn"
+    prev_model_path = "/project/def-m2nagapp/partha9/LTR/dqn_model_66.0.pt"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"

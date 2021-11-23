@@ -2,7 +2,7 @@ import random
 import pickle
 from tqdm import tqdm
 import torch
-from AC import PolicyModel, to_one_hot
+from DQN import DoubleDQN, to_one_hot
 import os
 from torch import nn
 import torch.nn.functional as F
@@ -21,15 +21,15 @@ if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cpu" #"cuda:0" if torch.cuda.is_available() else "cpu"
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
 
-    model = PolicyModel(env=env)
-    state_dict = torch.load("Models/DDQN/dqn_model_183.0.pt")
+    model = DoubleDQN(env=env)
+    state_dict = torch.load("Models/DQN/dqn_model_51.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
-    for _ in tqdm(range(50)):
+    for _ in tqdm(range(env.report_count)):
         all_rr.append(-100)
         done = False
         picked = []
@@ -41,8 +41,12 @@ if __name__ == "__main__":
             prev_actions = torch.from_numpy(prev_actions).to(dev).type(torch.float)
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
             hidden = [item.to(dev).type(torch.float) for item in hidden]
-            value, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
-            action = int(torch.argmax(value).detach().cpu().numpy())
+            action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
+            action = action.cpu()
+            action[0][
+                ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
+                action) - 3
+            action = int(torch.argmax(action).detach().cpu().numpy())
             prev_obs, reward, done, info, rr = env.step(action, return_rr=True)
             picked.append(action)
             if all_rr[-1] < rr:
@@ -50,3 +54,4 @@ if __name__ == "__main__":
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     print(all_rr.mean(), len(all_rr))
+    print(all_rr)
