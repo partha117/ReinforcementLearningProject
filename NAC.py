@@ -161,9 +161,11 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
-        pbar.set_description("Avg. reward {} Avg. episode {} Mem: {}".format(np.array(episode_reward).mean(),
-                                                                     np.array(episode_len_array).mean(),
-                                                                             psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2))
+        # pbar.set_description("Avg. reward {} Avg. episode {} Mem: {}".format(np.array(episode_reward).mean(),
+        #                                                              np.array(episode_len_array).mean(),
+        #                                                                      psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2))
+        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
+                                                                             np.array(episode_len_array).mean()))
         episode_len = 0
         while not done:
             episode_len += 1
