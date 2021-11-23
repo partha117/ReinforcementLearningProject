@@ -188,8 +188,8 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
             samples = buffer.sample(sample_size)
             update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
-        episode_reward.append(np.array(reward_array).sum())
-        episode_len_array.append(episode_len)
+            episode_reward.append(np.array(reward_array).sum())
+            episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(file_path + "New_AC_policy_model_{}.pt".format(save_num - 1)):
@@ -214,6 +214,7 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
 
 if __name__ == "__main__":
     file_path = "/project/def-m2nagapp/partha9/LTR/"
+    cache_path = "/scratch/partha9/.buffer_cache_ac"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
@@ -221,5 +222,5 @@ if __name__ == "__main__":
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-    buffer = CustomBuffer(6000)
+    buffer = CustomBuffer(6000, cache_path=cache_path)
     policy, value = train_actor_critic(total_time_step=7500, sample_size=128)

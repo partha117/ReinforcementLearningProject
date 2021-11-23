@@ -186,12 +186,13 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
 
 if __name__ == "__main__":
     file_path = "/project/def-m2nagapp/partha9/LTR/"
+    cache_path = "/scratch/partha9/.buffer_cache_dqn"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    buffer = CustomBuffer(6000)
+    buffer = CustomBuffer(6000, cache_path=cache_path)
     model = train_dqn_epsilon(buffer=buffer, sample_size=128, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)

@@ -2,6 +2,7 @@ from collections import deque
 import random
 import numpy as np
 import zlib
+from pathlib import Path
 import torch
 import pandas as pd
 from transformers import RobertaTokenizer, AutoModel, AutoTokenizer
@@ -84,26 +85,33 @@ def reduce_dimension_by_mean_pooling(embeddings, attention_mask, to_numpy=False)
     return mean_pooled.numpy() if to_numpy else mean_pooled
 
 class CustomBuffer(object):
-    def __init__(self, buffer_length):
+    def __init__(self, buffer_length, cache_path=".Buffer"):
         self.state = []
         self.next_state = []
         self.action = []
         self.reward = []
         self.done = []
         self.info = []
+        self.cache = cache_path
+        Path(self.cache).mkdir(parents=True, exist_ok=True)
     def add(self, state, next_state, action, reward, done, info):
-        self.state.append(state)
-        self.next_state.append(next_state)
+        # self.state.append(state)
+        np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
+        # self.next_state.append(next_state)
+        np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), state)
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
         self.info = self.info + info
     def sample(self, size):
-        indices = np.random.choice(len(self.state), size)
-        state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
+        indices = np.random.choice(len(self.action), size)
+        # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
+        state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
+                                                        np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
+                                                            indices]
         return torch.from_numpy(state), torch.from_numpy(action), torch.from_numpy(reward), torch.from_numpy(next_state), torch.from_numpy(done), info
     def __len__(self):
-        return len(self.state)
+        return len(self.action)
 class State:
 
     def __init__(self, t, qid, picked, remaining, caching=False):
