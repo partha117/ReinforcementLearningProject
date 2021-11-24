@@ -22,24 +22,27 @@ class ValueModel(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
+        self.lstm_hidden_space = 256
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
             return (size - (kernel_size - 1) - 1) // stride + 1
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = convw * convh * 32  # + env.action_space.n
-        self.lin_layer2 = nn.Linear(linear_input_size, 1)
+        linear_input_size = convw * convh * 32 + env.action_space.n
+        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space, 1)
 
-    def forward(self, x):
+    def forward(self, x, actions, hidden=None):
         x = x.unsqueeze(1) if x.dim() == 3 else x
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
-        # x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
+        x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
+        x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = self.lin_layer2(x)
-        return x
+        return x, [new_h, new_c]
 
 
 class PolicyModel(nn.Module):
@@ -64,33 +67,14 @@ class PolicyModel(nn.Module):
 
     def forward(self, x, actions, hidden=None):
         x = x.unsqueeze(1) if x.dim() == 3 else x
-        prev = x
         x = F.relu(self.bn1(self.conv1(x)))
-        if torch.isnan(x).any():
-            print("Here1")
-        prev = x
         x = F.relu(self.bn2(self.conv2(x)))
-        if torch.isnan(x).any():
-            print("Here2")
-        prev = x
         x = F.relu(self.bn3(self.conv3(x)))
-        if torch.isnan(x).any():
-            print("Here3")
-        prev = x
         x = x.view(x.size(0), -1)
         # x = F.relu(self.lin_layer1(x))
         x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
-        prev = x
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
-        if torch.isnan(x).any():
-            print("Here4")
-        # x = x.squeeze(0)
-        prev = x
         x = self.lin_layer2(x)
-        if torch.isnan(x).any():
-            print("Here5")
-        if torch.isnan(hidden[0]).any() or torch.isnan(hidden[1]).any():
-            print("Here6")
         # return torch.softmax((x * actions), dim=-1), [new_h, new_c]
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
@@ -119,10 +103,10 @@ def to_device(device, *args):
     return [x.to(device) for x in args]
 
 
-def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model):
+def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value, batch_picked):
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
         torch.float), next_states.to(device).type(torch.float)
-    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states).detach() - value_model(states)
+    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value)[0].detach() - value_model(states, batch_picked, batch_hidden_value)[0]
     return advantages
 
 
@@ -131,12 +115,15 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
+    batch_hidden_value = torch.tensor(np.array(
+        [np.stack([np.array(item['hidden_value'][0]) for item in info], axis=2)[0],
+         np.stack([np.array(item['hidden_value'][1]) for item in info], axis=2)[0]])).to(device)
     batch_picked = torch.tensor(np.array(
         [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(device).type(
         torch.float)
 
     """get advantage estimation from the trajectories"""
-    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net)
+    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value, batch_picked)
 
     """perform TRPO update"""
     a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
@@ -165,6 +152,8 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
         prev_obs = env.reset()
         hidden = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
+        hidden_value = [torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev),
+                  torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
         # pbar.set_description("Avg. reward {} Avg. episode {} Mem: {}".format(np.array(episode_reward).mean(),
@@ -181,6 +170,7 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
                 dev).type(torch.float)
             with torch.no_grad():
                 action, temp_hidden = policy_model(prev_obs, actions=temp_action, hidden=hidden)
+                _, temp_hidden_value = policy_model(prev_obs, actions=temp_action, hidden=hidden_value)
             action = torch.distributions.Categorical(action).sample()
             action = int(action[0][0].cpu().numpy())
             picked.append(action)
@@ -188,7 +178,10 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
             reward_array.append(reward)
             info['hidden'] = [item.cpu().numpy() for item in hidden]
             info['picked'] = picked
+            info['hidden'] = [item.cpu().numpy() for item in hidden]
+            info['hidden_value'] = [item.cpu().numpy() for item in hidden_value]
             hidden = temp_hidden
+            hidden_value = temp_hidden_value
             buffer.add(prev_obs.cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
