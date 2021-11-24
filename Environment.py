@@ -9,7 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 from pathlib import Path
 
 class LTREnv(gym.Env):
-    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, file_path=""):
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, file_path="", project_list=None):
         super(LTREnv, self).__init__()
         if use_gpu:
             self.dev = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -22,6 +22,7 @@ class LTREnv(gym.Env):
         self.sampled_id = None  # done
         self.filtered_df = None  # done
         self.max_len = max_len
+        self.project_list = project_list
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model = AutoModel.from_pretrained(tokenizer_path).to(self.dev)
         self.data_path = data_path
@@ -52,6 +53,8 @@ class LTREnv(gym.Env):
 
     def __get_ids(self):
         self.df = pd.read_csv(self.data_path)
+        if self.project_list is not None:
+            self.df = self.df[self.df['project_name'].isin(self.project_list)].reset_index(drop=True)
         self.df = self.df[self.df['report'].notna()]
         id_list = self.df.groupby('id')['cid'].count()
         id_list = id_list[id_list == int(self.action_space_dim)].index.to_list()
@@ -149,8 +152,8 @@ class LTREnv(gym.Env):
             print("Ranking: {} Document Cid: {} Timestep: {}".format(i + 1, item, self.t))
 
 class LTREnvV2(LTREnv):
-    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False, file_path=""):
-        super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=max_len, use_gpu=use_gpu, file_path=file_path)
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True, caching=False, file_path="", project_list=None):
+        super(LTREnvV2, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=max_len, use_gpu=use_gpu, file_path=file_path, project_list=project_list)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
                                             shape=(31, 1025), dtype=np.float32)
         self.all_embedding = []

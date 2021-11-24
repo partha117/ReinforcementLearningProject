@@ -3,6 +3,7 @@ import pickle
 from tqdm import tqdm
 import torch
 from DQN import DoubleDQN, to_one_hot
+from matplotlib import pyplot as plt
 import os
 from torch import nn
 import torch.nn.functional as F
@@ -21,11 +22,11 @@ if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cpu" #"cuda:0" if torch.cuda.is_available() else "cpu"
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=300, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path)
 
     model = DoubleDQN(env=env)
-    state_dict = torch.load("Models/DQN/dqn_model_51.0.pt")
+    state_dict = torch.load("Models/DQN/dqn_model_58.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
@@ -55,3 +56,6 @@ if __name__ == "__main__":
     all_rr = all_rr[all_rr > 0]
     print(all_rr.mean(), len(all_rr))
     print(all_rr)
+    print(1.0/all_rr)
+    plt.hist(1.0/all_rr, bins=30)
+    plt.show()

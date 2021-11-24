@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 
 def get_combined_full_dataset(project_name, test_percentage=0.4, non_match_size=30, use_uuid=True):
     print("Combining file {}".format(project_name))
+    real_project = project_name.split("/")[-1]
     df1 = pd.read_csv("{}.csv".format(project_name), delimiter='\t')
     df2 = pd.read_csv("{}_features.csv".format(project_name))
     df3 = pd.read_csv("{}_features_file_content.csv".format(project_name))
@@ -27,7 +28,7 @@ def get_combined_full_dataset(project_name, test_percentage=0.4, non_match_size=
         temp = pd.concat((train[(train['bug_id'] == item) & (train['match'] == 1)],
                           train[(train['bug_id'] == item) & (train['match'] == 0)].head(non_match_size)))
         small_train = pd.concat((small_train, temp))
-    small_train.drop(columns=set(small_train.columns) - {'id', 'cid', 'report', 'file_content', 'match'}, inplace=True)
+    small_train.drop(columns=set(small_train.columns) - {'id', 'cid', 'report', 'file_content', 'match','project_name'}, inplace=True)
     return small_train
 
 
@@ -46,11 +47,6 @@ def create_random_dataset(dataset_list, primary_id='id', full_size=1000):
     return temp_df.sample(frac=1, random_state=13).reset_index(drop=True)
 
 if __name__ == "__main__":
-    t1 = get_combined_full_dataset(
-        "Data/IntermediateData/AspectJ")
-    t2 = get_combined_full_dataset(
-        "Data/IntermediateData/Tomcat")
-    t3 = create_random_dataset([t1, t2], primary_id='id', full_size=5000)
     df1, df2, df3, df4, df5, df6 = get_combined_full_dataset(
         "Data/IntermediateData/Birt"), get_combined_full_dataset(
         "Data/IntermediateData/AspectJ"), get_combined_full_dataset(
