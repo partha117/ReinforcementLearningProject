@@ -39,6 +39,7 @@ class LTREnv(gym.Env):
         self.picked = []
         self.remained = []
         self.t = 0
+        self.suppoerted_len = None
         self.__get_ids()
 
     @staticmethod
@@ -67,8 +68,17 @@ class LTREnv(gym.Env):
         if self.project_list is not None:
             self.df = self.df[self.df['project_name'].isin(self.project_list)].reset_index(drop=True)
         self.df = self.df[self.df['report'].notna()]
+        if not self.test_env:
+            matched = self.df[self.df['match'] == 1]
+            not_matched = pd.DataFrame(columns=matched.columns)
+            match_counter = matched.groupby('id')['cid'].count()
+            for row in match_counter.iteritems():
+                temp = self.df[(self.df['match'] != 1) & (self.df['id'] == row[0])].sample(frac=1).reset_index(drop=True).head(self.action_space_dim - row[1])
+                not_matched = pd.concat([not_matched, temp])
+            self.df = pd.concat([matched, not_matched]).sample(frac=1).reset_index(drop=True)
         id_list = self.df.groupby('id')['cid'].count()
         id_list = id_list[id_list == int(self.action_space_dim)].index.to_list()
+        self.suppoerted_len = len(id_list)
         id_list = self.df[(self.df['id'].isin(id_list)) & (self.df['match'] == 1)]['id'].unique().tolist()
         random.seed(29) #13
         self.sampled_id = random.sample(id_list, min(len(id_list), self.report_count))

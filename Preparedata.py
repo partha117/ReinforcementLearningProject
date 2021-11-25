@@ -47,12 +47,18 @@ def create_random_dataset(dataset_list, primary_id='id', full_size=1000):
     return temp_df.sample(frac=1, random_state=13).reset_index(drop=True)
 
 if __name__ == "__main__":
-    df1, df2, df3, df4, df5, df6 = get_combined_full_dataset(
-        "Data/IntermediateData/Birt"), get_combined_full_dataset(
-        "Data/IntermediateData/AspectJ"), get_combined_full_dataset(
-        "Data/IntermediateData/Tomcat"), get_combined_full_dataset(
-        "Data/IntermediateData/SWT"), get_combined_full_dataset(
-        "Data/IntermediateData/JDT"), get_combined_full_dataset(
-        "Data/IntermediateData/Eclipse_Platform_UI")
-    combined_df = create_random_dataset([df1, df2, df3, df4, df5, df6], primary_id='id', full_size=5000)
-    combined_df.to_csv("Data/TrainData/Bench_BLDS_Dataset.csv", index=False)
+    df = get_combined_full_dataset(
+        "Data/IntermediateData/AspectJ")
+    combined_df = create_random_dataset([df], primary_id='id', full_size=5000)
+    combined_df.to_csv("Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv", index=False)
+
+
+    # df1, df2, df3, df4, df5, df6 = get_combined_full_dataset(
+    #     "Data/IntermediateData/Birt"), get_combined_full_dataset(
+    #     "Data/IntermediateData/AspectJ"), get_combined_full_dataset(
+    #     "Data/IntermediateData/Tomcat"), get_combined_full_dataset(
+    #     "Data/IntermediateData/SWT"), get_combined_full_dataset(
+    #     "Data/IntermediateData/JDT"), get_combined_full_dataset(
+    #     "Data/IntermediateData/Eclipse_Platform_UI")
+    # combined_df = create_random_dataset([df1, df2, df3, df4, df5, df6], primary_id='id', full_size=5000)
+    # combined_df.to_csv("Data/TrainData/Bench_BLDS_Dataset.csv", index=False)
