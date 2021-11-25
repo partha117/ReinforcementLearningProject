@@ -22,7 +22,7 @@ if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=20, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=28, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, test_env=True)
 
     model = DoubleDQN(env=env)
@@ -42,12 +42,13 @@ if __name__ == "__main__":
             prev_actions = torch.from_numpy(prev_actions).to(dev).type(torch.float)
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
             hidden = [item.to(dev).type(torch.float) for item in hidden]
-            action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
+            with torch.no_grad():
+                action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
             action = action.cpu()
             action[0][
                 ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
                 action) - 3
-            action = int(torch.argmax(action).detach().cpu().numpy())
+            action = int(torch.argmax(action).cpu().numpy())
             prev_obs, reward, done, info, rr = env.step(action, return_rr=True)
             picked.append(action)
             if all_rr[-1] < rr:
@@ -58,4 +59,6 @@ if __name__ == "__main__":
     print(all_rr)
     print(1.0/all_rr)
     plt.hist(1.0/all_rr, bins=30)
+    plt.show()
+    plt.boxplot(1.0/all_rr)
     plt.show()
