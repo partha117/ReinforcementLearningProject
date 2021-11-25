@@ -22,11 +22,11 @@ if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=10, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=20, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, test_env=True)
 
     model = DoubleDQN(env=env)
-    state_dict = torch.load("dqn_model_9.0.pt")
+    state_dict = torch.load("Models/DQN/dqn_model_116.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
