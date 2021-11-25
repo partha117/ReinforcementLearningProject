@@ -1,6 +1,7 @@
 from collections import deque
 import random
 import numpy as np
+import os
 import zlib
 from pathlib import Path
 import torch
@@ -93,6 +94,7 @@ class CustomBuffer(object):
         self.done = []
         self.info = []
         self.cache = cache_path
+        os.system("rm -r {}".format(self.cache))
         Path(self.cache).mkdir(parents=True, exist_ok=True)
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
