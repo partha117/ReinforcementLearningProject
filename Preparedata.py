@@ -48,9 +48,9 @@ def create_random_dataset(dataset_list, primary_id='id', full_size=1000):
 
 if __name__ == "__main__":
     df = get_combined_full_dataset(
-        "Data/IntermediateData/AspectJ")
+        "Data/IntermediateData/Tomcat")
     combined_df = create_random_dataset([df], primary_id='id', full_size=5000)
-    combined_df.to_csv("Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv", index=False)
+    combined_df.to_csv("Data/TrainData/Bench_BLDS_Tomcat_Dataset.csv", index=False)
 
 
     # df1, df2, df3, df4, df5, df6 = get_combined_full_dataset(

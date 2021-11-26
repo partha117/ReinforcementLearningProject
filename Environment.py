@@ -63,7 +63,12 @@ class LTREnv(gym.Env):
                          "commit_timestamp", "files", "Unnamed: 10","bug_recency", "report_id", "rVSM_similarity",
                          "bug_frequency", "classname_similarity", "file", "collab_filter"], axis=1)
             matched = self.df[self.df['match'] == 1]
-            not_matched = self.df[self.df['match'] != 1].sample(frac=1).reset_index(drop=True).groupby('id').head(self.action_space_dim - 1).reset_index(drop=True)
+            not_matched = pd.DataFrame(columns=matched.columns)
+            match_counter = matched.groupby('id')['cid'].count()
+            for row in match_counter.iteritems():
+                temp = self.df[(self.df['match'] != 1) & (self.df['id'] == row[0])].sample(frac=1).reset_index(
+                    drop=True).head(self.action_space_dim - row[1])
+                not_matched = pd.concat([not_matched, temp])
             self.df = pd.concat([matched, not_matched]).sample(frac=1).reset_index(drop=True)
         if self.project_list is not None:
             self.df = self.df[self.df['project_name'].isin(self.project_list)].reset_index(drop=True)
