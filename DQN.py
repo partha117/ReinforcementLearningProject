@@ -200,7 +200,7 @@ if __name__ == "__main__":
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_JDT_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=['AspectJ'])
+                   use_gpu=False, caching=True, file_path=file_path, project_list=['JDT'])
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     buffer = CustomBuffer(6000, cache_path=cache_path)
