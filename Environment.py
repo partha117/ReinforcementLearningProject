@@ -40,6 +40,7 @@ class LTREnv(gym.Env):
         self.remained = []
         self.t = 0
         self.suppoerted_len = None
+        self.match_id = None
         self.__get_ids()
 
     @staticmethod
@@ -94,6 +95,7 @@ class LTREnv(gym.Env):
         self.__get_filtered_df()
         self.picked = []
         self.remained = self.filtered_df['cid'].tolist()
+        self.match_id = self.filtered_df[self.filtered_df['match'] == 1]['cid'].tolist()
         self.t = 0
         # self.picked.append(random.sample(self.remained, 1)[0])
         # self.remained.remove(self.picked[-1])

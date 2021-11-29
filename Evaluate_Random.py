@@ -2,8 +2,8 @@ import random
 import pickle
 from tqdm import tqdm
 import torch
-from DQN import DoubleDQN, to_one_hot
-from matplotlib import pyplot as plt
+from AC import PolicyModel, to_one_hot
+from NAC import PolicyModel as NewPolicyModel
 import os
 from torch import nn
 import torch.nn.functional as F
@@ -17,40 +17,46 @@ from tqdm import tqdm
 from pathlib import Path
 from stable_baselines3.common.buffers import ReplayBuffer
 from Buffer import CustomBuffer
-from Evaluate_Random import calculate_top_k
+class RandomModel(object):
+    def __init__(self, env):
+        self.env = env
+    def forward(self, prev_actions):
 
+        prev_actions = prev_actions.cpu().numpy()[0]
+        max_indices = np.argwhere(prev_actions == np.max(prev_actions)).reshape(-1)
+        choice = np.random.choice(len(max_indices), 1, replace=False)[0]
+        return max_indices[choice]
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(**kwargs)
+
+def calculate_top_k(source, target, k=32, counts=None):
+    if counts is None:
+        counts = np.zeros(k)
+    counts[len(source)] += int(any([item in source for item in target]))
+    return counts
 if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print("Using {}".format(dev))
     env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, test_env=True)
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=92, max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=['AspectJ'], test_env=True)
 
-    model = DoubleDQN(env=env)
-    state_dict = torch.load("Models/DQN/dqn_model_106.0.pt")
-    model.load_state_dict(state_dict=state_dict)
-    model = model.to(dev)
+    model = RandomModel(env=env)
     all_rr = []
     counts = None
-    for _ in tqdm(range(50)): #env.suppoerted_len)):
+    for _ in tqdm(range(env.suppoerted_len)):
         all_rr.append(-100)
         done = False
         picked = []
-        hidden = [torch.zeros([1, 1, model.lstm_hidden_space]).to(dev),
-                  torch.zeros([1, 1, model.lstm_hidden_space]).to(dev)]
         prev_obs = env.reset()
         while not done:
             prev_actions = to_one_hot(picked, max_size=env.action_space.n)
             prev_actions = torch.from_numpy(prev_actions).to(dev).type(torch.float)
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
-            hidden = [item.to(dev).type(torch.float) for item in hidden]
             with torch.no_grad():
-                action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
-            action = action.cpu()
-            action[0][
-                ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
-                action) - 3
-            action = int(torch.argmax(action).cpu().numpy())
+                action = model(prev_actions=prev_actions)
             prev_obs, reward, done, info, rr = env.step(action, return_rr=True)
             picked.append(action)
             if all_rr[-1] < rr:
@@ -61,7 +67,7 @@ if __name__ == "__main__":
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     print(all_rr.mean(), len(all_rr))
-    print((counts / env.suppoerted_len) * 100)
+    print((counts/env.suppoerted_len)*100)
     # print(all_rr)
     # print(1.0/all_rr)
     plt.hist(1.0/all_rr, bins=30)
