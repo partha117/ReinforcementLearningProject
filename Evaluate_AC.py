@@ -23,17 +23,18 @@ if __name__ == "__main__":
     file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using {}".format(dev))
-    env = LTREnvV2(data_path=file_path + "Data/TestData/JDT_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=['JDT'], test_env=True)
+    env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=92, max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=['AspectJ'], test_env=True)
 
     model = NewPolicyModel(env=env)
     state_dict = torch.load("Models/AC/New_AC_policy_model_107.0.pt")
+    # state_dict = torch.load("Models/AC/Entropy/New_AC_Entropy_policy_model_74.0.pt")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
     counts = None
-    for _ in tqdm(range(50)): #env.suppoerted_len)):
+    for _ in tqdm(range(env.suppoerted_len)):
         all_rr.append(-100)
         done = False
         picked = []

@@ -1,5 +1,6 @@
 import glob
 import psutil
+import argparse
 import os
 from pathlib import Path
 from tqdm import tqdm
@@ -130,7 +131,7 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
              batch_picked, batch_hidden)
 
 
-def train_actor_critic(total_time_step, sample_size, save_frequency=30):
+def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
@@ -193,37 +194,53 @@ def train_actor_critic(total_time_step, sample_size, save_frequency=30):
             episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "New_AC_Entropy_policy_model_{}.pt".format(save_num - 1)):
-                os.remove(file_path + "New_AC_Entropy_policy_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "New_AC_Entropy_value_model_{}.pt".format(save_num - 1)):
-                os.remove(file_path + "New_AC_Entropy_value_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "New_AC_Entropy_Episode_Reward.pickle"):
-                os.remove(file_path + "New_AC_Entropy_Episode_Reward.pickle")
-            if os.path.isfile(file_path + "New_AC_Entropy_Episode_Length.pickle"):
-                os.remove(file_path + "New_AC_Entropy_Episode_Length.pickle")
+            if os.path.isfile(file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name)):
+                os.remove(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name))
+            if os.path.isfile(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name)):
+                os.remove(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name))
 
-            torch.save(policy_model.state_dict(), file_path + "New_AC_Entropy_policy_model_{}.pt".format(save_num))
-            torch.save(value_model.state_dict(), file_path + "New_AC_Entropy_value_model_{}.pt".format(save_num))
+            torch.save(policy_model.state_dict(), file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num))
+            torch.save(value_model.state_dict(), file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num))
 
-            with open(file_path + "New_AC_Entropy_Episode_Reward.pickle", "wb") as f:
+            with open(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_reward, f)
 
-            with open(file_path + "New_AC_Entropy_Episode_Length.pickle", "wb") as f:
+            with open(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_len_array, f)
     return policy_model, value_model
 
 
 if __name__ == "__main__":
-    file_path = "/project/def-m2nagapp/partha9/LTR/"
-    cache_path = "/scratch/partha9/.buffer_cache_ac"
-    prev_policy_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
-    prev_value_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_value_model_124.0.pt"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
+    parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_ac", help='Cache Path')
+    parser.add_argument('--prev_policy_model_path', default=None, help='Trained Policy Path')
+    parser.add_argument('--prev_value_model_path', default=None, help='Trained Value Path')
+    parser.add_argument('--train_data_path', help='Training Data Path')
+    parser.add_argument('--project_name', help='Project Name')
+    options = parser.parse_args()
+    file_path = options.file_path
+    cache_path = options.cache_path
+    prev_policy_model_path = options.prev_policy_model_path
+    prev_value_model_path = options.prev_value_model_path
+    train_data_path = options.train_data_path
+    project_name = options.project_name
+    # file_path = "/project/def-m2nagapp/partha9/LTR/"
+    # cache_path = "/scratch/partha9/.buffer_cache_ac"
+    # prev_policy_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
+    # prev_value_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_value_model_124.0.pt"
+    # train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
+    # project_name = "AspectJ"
     Path(file_path).mkdir(parents=True, exist_ok=True)
-    env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv", model_path="microsoft/codebert-base",
+    env = LTREnvV2(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=['AspectJ'])
+                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name])
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=128)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=128, project_name=project_name)
