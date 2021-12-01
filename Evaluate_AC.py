@@ -1,6 +1,8 @@
 import random
 import pickle
 from tqdm import tqdm
+import  json
+import argparse
 import torch
 from AC import PolicyModel, to_one_hot
 from Evaluate_Random import calculate_top_k
@@ -20,16 +22,29 @@ from stable_baselines3.common.buffers import ReplayBuffer
 from Buffer import CustomBuffer
 
 if __name__ == "__main__":
-    file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
+    parser.add_argument('--test_data_path', help='Test Data Path')
+    parser.add_argument('--project_name', help='Project Name')
+    parser.add_argument('--model_path', help='Project Name')
+    parser.add_argument('--result_path', help='Project Name')
+    options = parser.parse_args()
+    # file_path = "/project/def-m2nagapp/partha9/LTR/"
+    # test_data_path = "Data/TestData/AspectJ_test.csv"
+    # project_name = "AspectJ"
+    file_path = options.file_path
+    test_data_path = options.test_data_path
+    project_name = options.project_name
+    model_path = options.model_path
+    result_path = options.result_path
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using {}".format(dev))
-    env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=92, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=['AspectJ'], test_env=True)
+    env = LTREnvV2(data_path=file_path + test_data_path, model_path="microsoft/codebert-base",
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], test_env=True)
 
     model = NewPolicyModel(env=env)
-    state_dict = torch.load("Models/AC/New_AC_policy_model_107.0.pt")
-    # state_dict = torch.load("Models/AC/Entropy/New_AC_Entropy_policy_model_74.0.pt")
+    state_dict = torch.load(file_path + model_path)
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
@@ -57,11 +72,17 @@ if __name__ == "__main__":
             counts = calculate_top_k(source=env.picked, target=env.match_id, counts=counts)
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
-    print(all_rr.mean(), len(all_rr))
-    print((counts / env.suppoerted_len) * 100)
-    # print(all_rr)
-    # print(1.0/all_rr)
+    mean_rr = all_rr.mean()
+    actual_rank = 1.0/all_rr
+
+
+
+    Path(result_path).mkdir(exist_ok=True,parents=True)
+    json.dump({"mrr": mean_rr}, open(result_path + "_mrr.json", "w"))
+    np.save(result_path + "_ranks..npy", actual_rank)
+    plt.figure(figsize=(500, 500))
     plt.hist(1.0/all_rr, bins=30)
-    plt.show()
+    plt.savefig(result_path + "_histogram.eps", format='eps', dpi=100)
+    plt.figure(figsize=(500, 500))
     plt.boxplot(1.0/all_rr)
-    plt.show()
+    plt.savefig(result_path + "_boxplot.eps", format='eps', dpi=100)
