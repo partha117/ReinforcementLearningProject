@@ -194,22 +194,22 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             episode_len_array.append(episode_len)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1)):
-                os.remove(file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1))
-            if os.path.isfile(file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1)):
-                os.remove(file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1))
-            if os.path.isfile(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name)):
-                os.remove(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name))
-            if os.path.isfile(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name)):
-                os.remove(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name))
+            if os.path.isfile(save_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(save_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(save_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(save_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(save_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name)):
+                os.remove(save_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name))
+            if os.path.isfile(save_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name)):
+                os.remove(save_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name))
 
-            torch.save(policy_model.state_dict(), file_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num))
-            torch.save(value_model.state_dict(), file_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num))
+            torch.save(policy_model.state_dict(), save_path + "{}_New_AC_Entropy_policy_model_{}.pt".format(project_name, save_num))
+            torch.save(value_model.state_dict(), save_path + "{}_New_AC_Entropy_value_model_{}.pt".format(project_name, save_num))
 
-            with open(file_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name), "wb") as f:
+            with open(save_path + "{}_New_AC_Entropy_Episode_Reward.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_reward, f)
 
-            with open(file_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name), "wb") as f:
+            with open(save_path + "{}_New_AC_Entropy_Episode_Length.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_len_array, f)
     return policy_model, value_model
 
@@ -221,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument('--prev_policy_model_path', default=None, help='Trained Policy Path')
     parser.add_argument('--prev_value_model_path', default=None, help='Trained Value Path')
     parser.add_argument('--train_data_path', help='Training Data Path')
+    parser.add_argument('--save_path', help='Save Path')
     parser.add_argument('--project_name', help='Project Name')
     options = parser.parse_args()
     file_path = options.file_path
@@ -229,6 +230,7 @@ if __name__ == "__main__":
     prev_value_model_path = options.prev_value_model_path
     train_data_path = options.train_data_path
     project_name = options.project_name
+    save_path = options.save_path
     # file_path = "/project/def-m2nagapp/partha9/LTR/"
     # cache_path = "/scratch/partha9/.buffer_cache_ac"
     # prev_policy_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
