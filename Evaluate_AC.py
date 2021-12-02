@@ -79,10 +79,10 @@ if __name__ == "__main__":
 
     Path(result_path).mkdir(exist_ok=True,parents=True)
     json.dump({"mrr": mean_rr}, open(result_path + "_mrr.json", "w"))
-    np.save(result_path + "_ranks..npy", actual_rank)
+    np.save(result_path + "_ranks.npy", actual_rank)
     plt.figure(figsize=(500, 500))
     plt.hist(1.0/all_rr, bins=30)
-    plt.savefig(result_path + "_histogram.eps", format='eps', dpi=100)
+    plt.savefig(result_path + "_histogram.eps", format='eps', dpi=50)
     plt.figure(figsize=(500, 500))
     plt.boxplot(1.0/all_rr)
-    plt.savefig(result_path + "_boxplot.eps", format='eps', dpi=100)
+    plt.savefig(result_path + "_boxplot.eps", format='eps', dpi=50)
