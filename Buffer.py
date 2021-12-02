@@ -100,7 +100,7 @@ class CustomBuffer(object):
         # self.state.append(state)
         np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
         # self.next_state.append(next_state)
-        np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), state)
+        np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
