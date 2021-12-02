@@ -3,6 +3,7 @@ import pickle
 from tqdm import tqdm
 import torch
 import argparse
+import json
 from DQN import DoubleDQN, to_one_hot
 from matplotlib import pyplot as plt
 import os
@@ -38,7 +39,7 @@ if __name__ == "__main__":
     result_path = options.result_path
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, test_env=True)
 
     model = DoubleDQN(env=env)
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     model = model.to(dev)
     all_rr = []
     counts = None
-    for _ in tqdm(range(50)): #env.suppoerted_len)):
+    for _ in tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
         all_rr.append(-100)
         done = False
         picked = []
