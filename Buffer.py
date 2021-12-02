@@ -108,9 +108,13 @@ class CustomBuffer(object):
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
-        state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
-                                                        np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
-                                                            indices]
+        try:
+            state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
+                                                            np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
+                                                                indices]
+        except Exception as ex:
+            print(self.action)
+            raise ex
         return torch.from_numpy(state), torch.from_numpy(action), torch.from_numpy(reward), torch.from_numpy(next_state), torch.from_numpy(done), info
     def __len__(self):
         return len(self.action)
