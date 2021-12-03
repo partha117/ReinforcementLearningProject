@@ -11,8 +11,8 @@
 export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/AC_Entropy.py \
 --file_path /project/def-m2nagapp/partha9/LTR/ \
 --cache_path /scratch/partha9/.buffer_cache_ac_jdt \
---prev_policy_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/JDT/JDT_New_AC_Entropy_policy_model_94.0.pt \
---prev_value_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/JDT/JDT_New_AC_Entropy_value_model_94.0.pt \
+--prev_policy_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/JDT/JDT_New_AC_Entropy_policy_model_81.0.pt \
+--prev_value_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/JDT/JDT_New_AC_Entropy_value_model_81.0.pt \
 --train_data_path Data/TrainData/Bench_BLDS_JDT_Dataset.csv \
 --save_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/JDT/ \
 --project_name JDT

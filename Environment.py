@@ -88,7 +88,7 @@ class LTREnv(gym.Env):
         if self.report_count is None:
             self.report_count = self.suppoerted_len
         id_list = self.df[(self.df['id'].isin(id_list)) & (self.df['match'] == 1)]['id'].unique().tolist()
-        random.seed(13) #13
+        random.seed(59) #13
         self.sampled_id = random.sample(id_list, min(len(id_list), self.report_count))
 
     def reset(self):
