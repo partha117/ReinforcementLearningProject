@@ -276,5 +276,5 @@ if __name__ == "__main__":
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=64, project_name=project_name)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name)
 
