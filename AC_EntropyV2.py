@@ -59,10 +59,11 @@ class ValueModel(nn.Module):
 
     def forward(self, x, actions, hidden=None):
         x_source = self.source_conv_net(x[:, :, :, 768:])
-        x_report = self.report_conv_net(x[:, :, :, 768:])
+        x_report = self.report_conv_net(x[:, :, :, :768])
         x = torch.concat([x_report, x_source], axis=2)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = self.lin_layer2(x)
+        print("value s")
         return x, [new_h, new_c]
 
 
@@ -85,13 +86,14 @@ class PolicyModel(nn.Module):
     def forward(self, x, actions, hidden=None):
         # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
-        x_report = self.report_conv_net(x[:, :, :, 768:])
+        x_report = self.report_conv_net(x[:, :, :, :768])
         x = torch.concat([x_report, x_source], axis=2)
         # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = self.lin_layer2(x)
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
+        print("Policy s")
         return x, [new_h, new_c]
 
 
