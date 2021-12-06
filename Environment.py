@@ -292,19 +292,20 @@ class LTREnvV3(LTREnv):
                     Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
                     np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id),
                             self.all_embedding)
-
+                self.all_embedding = np.stack(self.all_embedding)
             else:
                 self.all_embedding = np.load(
                     self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
         if len(self.picked) > 0:
-            action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
-            self.all_embedding[action_index][:, :, 768:] = np.full_like(self.all_embedding[action_index][:, :, 768:], 0,
-                                                                        dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
-            stacked_rep = np.stack(self.all_embedding)
-        else:
-            stacked_rep = np.stack(self.all_embedding)
-        self.previous_obs = stacked_rep
-        return stacked_rep.squeeze(1)
+            try:
+                action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
+                self.all_embedding[action_index, :, :, 768:] = np.full_like(self.all_embedding[action_index, :, :, 768:], 0,
+                                                                            dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
+            except Exception as ex:
+                print(ex, action_index, self.current_id)
+                raise ex
+        self.previous_obs = self.all_embedding
+        return self.all_embedding.squeeze(1)
 
 
 if __name__ == "__main__":
