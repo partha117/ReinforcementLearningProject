@@ -57,7 +57,7 @@ class ValueModel(nn.Module):
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space, 1)
 
-    def forward(self, x, hidden=None):
+    def forward(self, x, actions, hidden=None):
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, :, :, 768:])
         x = torch.concat([x_report, x_source])
