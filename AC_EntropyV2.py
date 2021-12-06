@@ -100,6 +100,7 @@ class PolicyModel(nn.Module):
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
              lambda_val=1):
     """update critic"""
+    print("starting a2c")
     value_loss = advantages.pow(2).mean()
     optimizer_value.zero_grad()
     value_loss.backward()
@@ -116,6 +117,7 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     optimizer_policy.zero_grad()
     policy_loss.backward()
     optimizer_policy.step()
+    print("a2c end")
 
 
 def to_device(device, *args):
@@ -124,6 +126,7 @@ def to_device(device, *args):
 
 def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value,
                         batch_picked):
+    print("startin advantage")
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
         torch.float), next_states.to(device).type(torch.float)
     advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value)[
@@ -134,6 +137,7 @@ def estimate_advantages(rewards, done, states, next_states, gamma, device, value
 
 def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device):
     state, action, reward, next_state, done, info = samples
+    print("update params")
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
@@ -207,6 +211,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
                        [info])
             prev_obs = obs
         if len(buffer) > 50:
+            print("In buffer sampling")
             samples = buffer.sample(sample_size)
             update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
