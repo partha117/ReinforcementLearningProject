@@ -176,8 +176,10 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
     episode_len_array = []
     episode_reward = []
     for e in pbar:
+        print("starting pbar")
         done = False
         prev_obs = env.reset()
+        print("Got observation")
         hidden = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
         hidden_value = [torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev),
