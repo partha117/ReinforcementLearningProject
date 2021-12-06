@@ -32,7 +32,7 @@ class TwoDConv(nn.Module):
         self.linear_input_size = convw * convh * 16
 
     def forward(self, x):
-        # print("twpo", x.shape)
+        # # print("twpo", x.shape)
         seq_length = x.size(1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -55,16 +55,19 @@ class ValueModel(nn.Module):
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
         linear_input_size = 5856 # convw * convh * 32 * 2
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space, 1)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, 1)
 
     def forward(self, x, actions, hidden=None):
-        print("vlaue", x.shape)
+        # print("vlaue", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, :, :, :768])
         x = torch.concat([x_report, x_source], axis=2)
+        # print("value 1", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
+        # print("value 2", x.shape)
+        x = x.reshape(x.size(0), -1)
         x = self.lin_layer2(x)
-        print("value s")
+        # print("value s", x.shape)
         return x, [new_h, new_c]
 
 
@@ -82,34 +85,36 @@ class PolicyModel(nn.Module):
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
         linear_input_size = 5856 #convw * convh * 32 * 2
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space, env.action_space.n)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
-        print("policy", x.shape)
+        # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, :, :, :768])
         x = torch.concat([x_report, x_source], axis=2)
-        # print("concat", x.shape)
+        # # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
+        x = x.reshape(x.size(0), -1)
         x = self.lin_layer2(x)
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
-        print("Policy s")
+        # print("Policy s")
+        # print("policy shape", x.shape)
         return x, [new_h, new_c]
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
              lambda_val=1):
     """update critic"""
-    print("starting a2c")
+    # print("starting a2c")
     value_loss = advantages.pow(2).mean()
     optimizer_value.zero_grad()
     value_loss.backward()
     optimizer_value.step()
 
     """update policy"""
-    print("getting policy")
-    print(states.shape)
+    # print("getting policy")
+    # print(states.shape)
     probs, _ = policy_net(states, actions=batch_picked, hidden=batch_hidden)
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
@@ -118,7 +123,7 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     optimizer_policy.zero_grad()
     policy_loss.backward()
     optimizer_policy.step()
-    print("a2c end")
+    # print("a2c end")
 
 
 def to_device(device, *args):
@@ -127,18 +132,21 @@ def to_device(device, *args):
 
 def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value,
                         batch_picked):
-    print("startin advantage")
+    # print("startin advantage")
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
         torch.float), next_states.to(device).type(torch.float)
+    # print("d1", rewards.shape)
+    # print("d1", masks.shape)
     advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value)[
         0].detach() - value_model(states, batch_picked, batch_hidden_value)[0]
-    print("estimate advantage1")
+    # print("estimate advantage1")
     return advantages
 
 
 def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device):
     state, action, reward, next_state, done, info = samples
-    print("update params")
+    next_state = next_state.squeeze(1)
+    # print("update params", state.shape,next_state.shape)
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
@@ -159,7 +167,6 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
 
 
 def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30):
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     policy_model = PolicyModel(env=env)
     value_model = ValueModel(env=env)
     if prev_policy_model_path is not None:
@@ -176,10 +183,10 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
     episode_len_array = []
     episode_reward = []
     for e in pbar:
-        print("starting pbar")
+        # print("starting pbar")
         done = False
         prev_obs = env.reset()
-        print("Got observation")
+        # print("Got observation")
         hidden = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
         hidden_value = [torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev),
@@ -189,23 +196,27 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
                                                                      np.array(episode_len_array).mean()))
         episode_len = 0
-        print("starting episode loop")
+        # print("starting episode loop")
         while not done:
             episode_len += 1
-            print("Before", prev_obs.shape)
+            # print("Before", prev_obs.shape)
             prev_obs = torch.Tensor(prev_obs).to(dev)
-            print("Before1", prev_obs.shape)
+            # print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
-            print("Here", prev_obs.shape)
+            # print("Here", prev_obs.shape)
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
                 dev).type(torch.float)
             with torch.no_grad():
                 action, temp_hidden = policy_model(prev_obs, actions=temp_action, hidden=hidden)
                 _, temp_hidden_value = policy_model(prev_obs, actions=temp_action, hidden=hidden_value)
+            # print(action.shape)
             action = torch.distributions.Categorical(action).sample()
-            action = int(action[0][0].cpu().numpy())
+            # print(action.shape)
+            action = int(action[0].cpu().numpy())
+            # print("Taken", action)
             picked.append(action)
             obs, reward, done, info = env.step(action)
+            # print("new state", prev_obs.shape, obs.shape)
             reward_array.append(reward)
             info['hidden'] = [item.cpu().numpy() for item in hidden]
             info['picked'] = picked
@@ -213,11 +224,11 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             info['hidden_value'] = [item.cpu().numpy() for item in hidden_value]
             hidden = temp_hidden
             hidden_value = temp_hidden_value
-            buffer.add(prev_obs.cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
+            buffer.add(prev_obs.squeeze(0).cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-        if len(buffer) > 50:
-            print("In buffer sampling")
+        if len(buffer) > 2:
+            # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
@@ -279,5 +290,5 @@ if __name__ == "__main__":
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=32, project_name=project_name)
 
