@@ -288,11 +288,11 @@ class LTREnvV3(LTREnv):
 
                     final_rep = np.concatenate([report_output.last_hidden_state, code_output.last_hidden_state], axis=2)
                     self.all_embedding.append(final_rep)
+                self.all_embedding = np.stack(self.all_embedding)
                 if self.caching:
                     Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
                     np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id),
                             self.all_embedding)
-                self.all_embedding = np.stack(self.all_embedding)
             else:
                 self.all_embedding = np.load(
                     self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
@@ -305,8 +305,7 @@ class LTREnvV3(LTREnv):
                 print(ex, action_index, self.current_id)
                 raise ex
         self.previous_obs = self.all_embedding
-        print("Current_Id", self.current_id)
-        print(type(self.all_embedding), self.all_embedding.shape)
+        print("Current_Id", self.current_id, type(self.all_embedding))
         return self.all_embedding.squeeze(1)
 
 
