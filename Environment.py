@@ -295,7 +295,7 @@ class LTREnvV3(LTREnv):
                             self.all_embedding)
             else:
                 self.all_embedding = np.load(
-                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
+                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id))
         if len(self.picked) > 0:
             try:
                 action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
@@ -305,7 +305,7 @@ class LTREnvV3(LTREnv):
                 print(ex, action_index, self.current_id)
                 raise ex
         self.previous_obs = self.all_embedding
-        print("Current_Id", self.current_id, type(self.all_embedding))
+        # print("Current_Id", self.current_id, type(self.all_embedding))
         return self.all_embedding.squeeze(1)
 
 
