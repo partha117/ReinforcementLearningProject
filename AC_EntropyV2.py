@@ -187,6 +187,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
                                                                      np.array(episode_len_array).mean()))
         episode_len = 0
+        print("starting episode loop")
         while not done:
             episode_len += 1
             print("Before", prev_obs.shape)
