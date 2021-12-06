@@ -106,6 +106,8 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     optimizer_value.step()
 
     """update policy"""
+    print("getting policy")
+    print(states.shape)
     probs, _ = policy_net(states, actions=batch_picked, hidden=batch_hidden)
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
@@ -126,6 +128,7 @@ def estimate_advantages(rewards, done, states, next_states, gamma, device, value
         torch.float), next_states.to(device).type(torch.float)
     advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value)[
         0].detach() - value_model(states, batch_picked, batch_hidden_value)[0]
+    print("estimate advantage1")
     return advantages
 
 
