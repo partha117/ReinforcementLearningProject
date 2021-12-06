@@ -4,6 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=8G      # memory; default unit is megabytes
 #SBATCH --time=18:20:00           # time (DD-HH:MM)
+#SBATCH --gres=gpu:v100l:1
 #SBATCH --output=%x-%j.out
 #SBATCH --mail-user=p9chakra@uwtaerloo.ca
 #SBATCH --mail-type=ALL
