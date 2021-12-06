@@ -189,7 +189,9 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         episode_len = 0
         while not done:
             episode_len += 1
+            print("Before", prev_obs.shape)
             prev_obs = torch.Tensor(prev_obs).to(dev)
+            print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
             print("Here", prev_obs.shape)
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
