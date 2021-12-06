@@ -31,7 +31,7 @@ class TwoDConvReport(nn.Module):
         self.linear_input_size = convw * convh * 4
 
     def forward(self, x):
-        # # # print("twpo", x.shape)
+        # # # # print("twpo", x.shape)
         seq_length = x.size(1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -56,7 +56,7 @@ class TwoDConv(nn.Module):
         self.linear_input_size = convw * convh * 16
 
     def forward(self, x):
-        # # # print("twpo", x.shape)
+        # # # # print("twpo", x.shape)
         seq_length = x.size(1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -78,23 +78,23 @@ class ValueModel(nn.Module):
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
         linear_input_size = 4872  # convw * convh * 32 * 2
+        self.action_space = env.action_space.n
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, env.action_space.n)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, 1)
 
     def forward(self, x, actions, hidden=None):
-        # print("policy", x.shape)
+        # # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, 0, :, :768].unsqueeze(1))
-        x_report = x_report.repeat(1, 31, 1)
-        # print("source", x_source.shape)
-        # print("report", x_report.shape)
+        x_report = x_report.repeat(1, self.action_space, 1)
+        # # print("source", x_source.shape)
+        # # print("report", x_report.shape)
         x = torch.concat([x_report, x_source], axis=2)
-        # print("concat", x.shape)
+        # # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = x.reshape(x.size(0), -1)
         x = self.lin_layer2(x)
-        x = self.lin_layer2(x)
-        # # print("value s", x.shape)
+        # print("value s", x.shape)
         return x, [new_h, new_c]
 
 
@@ -110,26 +110,31 @@ class PolicyModel(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = 4872#convw * convh * 32 * 2
+        linear_input_size = 4872 # convw * convh * 32 * 2
+        self.action_space = env.action_space.n
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
-        # print("policy", x.shape)
+        # # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, 0, :, :768].unsqueeze(1))
-        x_report = x_report.repeat(1, 31, 1)
+        x_report = x_report.repeat(1, self.action_space, 1)
         # print("source", x_source.shape)
         # print("report", x_report.shape)
         x = torch.concat([x_report, x_source], axis=2)
         # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = x.reshape(x.size(0), -1)
+        # print("before lin", x.shape)
         x = self.lin_layer2(x)
+        # print("after lin", x.shape)
+        # print(torch.softmax(x, dim=-1).shape, actions.shape)
+        actions = actions.squeeze(1) if actions.dim() == 3 else actions
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
-        # # print("Policy s")
-        # # print("policy shape", x.shape)
+        # # # print("Policy s")
+        # print("policy shape", x.shape)
         return x, [new_h, new_c]
 
 
@@ -137,59 +142,65 @@ class PolicyModel(nn.Module):
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
              lambda_val=1):
     """update critic"""
-    # print("starting a2c")
+    # # print("starting a2c")
     value_loss = advantages.pow(2).mean()
     optimizer_value.zero_grad()
     value_loss.backward()
     optimizer_value.step()
 
     """update policy"""
-    # print("getting policy")
-    # print(states.shape)
+    # # print("getting policy")
+    # # print(states.shape)
     probs, _ = policy_net(states, actions=batch_picked, hidden=batch_hidden)
+    # print("probs", probs.shape)
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
+    # print(dist.log_prob(action).shape, advantages.shape)
     policy_loss = -dist.log_prob(action) * advantages.detach() + lambda_val * dist.entropy()
     policy_loss = policy_loss.mean()
     optimizer_policy.zero_grad()
     policy_loss.backward()
     optimizer_policy.step()
-    # print("a2c end")
+    # # print("a2c end")
 
 
 def to_device(device, *args):
     return [x.to(device) for x in args]
 
 
-def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value,
+def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value, batch_hidden_value_next,
                         batch_picked):
-    # print("startin advantage")
+    # # print("startin advantage")
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
         torch.float), next_states.to(device).type(torch.float)
-    # print("d1", rewards.shape)
-    # print("d1", masks.shape)
-    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value)[
+    # # print("d1", rewards.shape)
+    # # print("d1", masks.shape)
+    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states, batch_picked, batch_hidden_value_next)[
         0].detach() - value_model(states, batch_picked, batch_hidden_value)[0]
-    # print("estimate advantage1")
+    # # print("estimate advantage1")
+    # print("advantages", advantages.shape)
     return advantages
 
 
 def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device):
     state, action, reward, next_state, done, info = samples
     next_state = next_state.squeeze(1)
-    # print("update params", state.shape,next_state.shape)
+    # # print("update params", state.shape,next_state.shape)
     batch_hidden = torch.tensor(np.array(
         [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(device)
     batch_hidden_value = torch.tensor(np.array(
         [np.stack([np.array(item['hidden_value'][0]) for item in info], axis=2)[0],
          np.stack([np.array(item['hidden_value'][1]) for item in info], axis=2)[0]])).to(device)
+    batch_hidden_value_next = torch.tensor(np.array(
+        [np.stack([np.array(item['hidden_value_next'][0]) for item in info], axis=2)[0],
+         np.stack([np.array(item['hidden_value_next'][1]) for item in info], axis=2)[0]])).to(device)
     batch_picked = torch.tensor(np.array(
         [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(device).type(
         torch.float)
 
     """get advantage estimation from the trajectories"""
-    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value,
+    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value, batch_hidden_value_next,
                                      batch_picked)
 
     """perform TRPO update"""
@@ -214,10 +225,10 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
     episode_len_array = []
     episode_reward = []
     for e in pbar:
-        # print("starting pbar")
+        # # print("starting pbar")
         done = False
         prev_obs = env.reset()
-        # print("Got observation")
+        # # print("Got observation")
         hidden = [torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev),
                   torch.zeros([1, 1, policy_model.lstm_hidden_space]).to(dev)]
         hidden_value = [torch.zeros([1, 1, value_model.lstm_hidden_space]).to(dev),
@@ -227,39 +238,40 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
                                                                      np.array(episode_len_array).mean()))
         episode_len = 0
-        # print("starting episode loop")
+        # # print("starting episode loop")
         while not done:
             episode_len += 1
-            # print("Before", prev_obs.shape)
+            # # print("Before", prev_obs.shape)
             prev_obs = torch.Tensor(prev_obs).to(dev)
-            # print("Before1", prev_obs.shape)
+            # # print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
-            # print("Here", prev_obs.shape)
+            # # print("Here", prev_obs.shape)
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
                 dev).type(torch.float)
             with torch.no_grad():
                 action, temp_hidden = policy_model(prev_obs, actions=temp_action, hidden=hidden)
-                _, temp_hidden_value = policy_model(prev_obs, actions=temp_action, hidden=hidden_value)
+                _, temp_hidden_value = value_model(prev_obs, actions=temp_action, hidden=hidden_value)
             # print(action.shape)
             action = torch.distributions.Categorical(action).sample()
-            # print(action.shape)
+            # # print(action.shape)
             action = int(action[0].cpu().numpy())
-            # print("Taken", action)
+            # # print("Taken", action)
             picked.append(action)
             obs, reward, done, info = env.step(action)
-            # print("new state", prev_obs.shape, obs.shape)
+            # # print("new state", prev_obs.shape, obs.shape)
             reward_array.append(reward)
             info['hidden'] = [item.cpu().numpy() for item in hidden]
             info['picked'] = picked
             info['hidden'] = [item.cpu().numpy() for item in hidden]
             info['hidden_value'] = [item.cpu().numpy() for item in hidden_value]
+            info['hidden_value_next'] = [item.cpu().numpy() for item in temp_hidden_value]
             hidden = temp_hidden
             hidden_value = temp_hidden_value
             buffer.add(prev_obs.squeeze(0).cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-        if len(buffer) > 50:
-            # print("In buffer sampling")
+        if len(buffer) > 70:
+            # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
