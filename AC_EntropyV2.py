@@ -13,7 +13,31 @@ import torch.nn.functional as F
 import numpy as np
 import pickle
 
+class TwoDConvReport(nn.Module):
+    def __init__(self, in_channel, env):
+        super(TwoDConvReport, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=in_channel, out_channels=4, kernel_size=5, stride=3)
+        self.bn1 = nn.BatchNorm2d(4)
+        self.conv2 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=5, stride=3)
+        self.bn2 = nn.BatchNorm2d(8)
+        self.conv3 = nn.Conv2d(in_channels=8, out_channels=4, kernel_size=5, stride=3)
+        self.bn3 = nn.BatchNorm2d(4)
 
+        def conv2d_size_out(size, kernel_size=5, stride=3):
+            return (size - (kernel_size - 1) - 1) // stride + 1
+
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
+        self.linear_input_size = convw * convh * 4
+
+    def forward(self, x):
+        # # # print("twpo", x.shape)
+        seq_length = x.size(1)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = x.view(x.size(0), seq_length, -1)
+        return x
 class TwoDConv(nn.Module):
     def __init__(self, in_channel, env):
         super(TwoDConv, self).__init__()
@@ -32,7 +56,7 @@ class TwoDConv(nn.Module):
         self.linear_input_size = convw * convh * 16
 
     def forward(self, x):
-        # # print("twpo", x.shape)
+        # # # print("twpo", x.shape)
         seq_length = x.size(1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -45,7 +69,7 @@ class ValueModel(nn.Module):
     def __init__(self, env):
         super(ValueModel, self).__init__()
         self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1)
         self.lstm_hidden_space = 256
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
@@ -53,21 +77,24 @@ class ValueModel(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = 5856 # convw * convh * 32 * 2
+        linear_input_size = 4872  # convw * convh * 32 * 2
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, 1)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
-        # print("vlaue", x.shape)
+        # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
-        x_report = self.report_conv_net(x[:, :, :, :768])
+        x_report = self.report_conv_net(x[:, 0, :, :768].unsqueeze(1))
+        x_report = x_report.repeat(1, 31, 1)
+        # print("source", x_source.shape)
+        # print("report", x_report.shape)
         x = torch.concat([x_report, x_source], axis=2)
-        # print("value 1", x.shape)
+        # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
-        # print("value 2", x.shape)
         x = x.reshape(x.size(0), -1)
         x = self.lin_layer2(x)
-        # print("value s", x.shape)
+        x = self.lin_layer2(x)
+        # # print("value s", x.shape)
         return x, [new_h, new_c]
 
 
@@ -75,7 +102,7 @@ class PolicyModel(nn.Module):
     def __init__(self, env):
         super(PolicyModel, self).__init__()
         self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1)
         self.lstm_hidden_space = 256
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
@@ -83,24 +110,28 @@ class PolicyModel(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = 5856 #convw * convh * 32 * 2
+        linear_input_size = 4872#convw * convh * 32 * 2
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space * env.action_space.n, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
         # print("policy", x.shape)
         x_source = self.source_conv_net(x[:, :, :, 768:])
-        x_report = self.report_conv_net(x[:, :, :, :768])
+        x_report = self.report_conv_net(x[:, 0, :, :768].unsqueeze(1))
+        x_report = x_report.repeat(1, 31, 1)
+        # print("source", x_source.shape)
+        # print("report", x_report.shape)
         x = torch.concat([x_report, x_source], axis=2)
-        # # print("concat", x.shape)
+        # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = x.reshape(x.size(0), -1)
         x = self.lin_layer2(x)
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
-        # print("Policy s")
-        # print("policy shape", x.shape)
+        # # print("Policy s")
+        # # print("policy shape", x.shape)
         return x, [new_h, new_c]
+
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
