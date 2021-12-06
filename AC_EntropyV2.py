@@ -53,14 +53,14 @@ class ValueModel(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = convw * convh * 32 * 2
+        linear_input_size = 5856 # convw * convh * 32 * 2
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space, 1)
 
     def forward(self, x, actions, hidden=None):
         x_source = self.source_conv_net(x[:, :, :, 768:])
         x_report = self.report_conv_net(x[:, :, :, 768:])
-        x = torch.concat([x_report, x_source])
+        x = torch.concat([x_report, x_source], axis=2)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         x = self.lin_layer2(x)
         return x, [new_h, new_c]
