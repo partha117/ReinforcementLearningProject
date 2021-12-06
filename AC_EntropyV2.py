@@ -45,7 +45,7 @@ class ValueModel(nn.Module):
     def __init__(self, env):
         super(ValueModel, self).__init__()
         self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConv(env=env, in_channel=1)
+        self.report_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
         self.lstm_hidden_space = 256
 
         def conv2d_size_out(size, kernel_size=5, stride=2):
