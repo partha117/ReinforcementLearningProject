@@ -61,7 +61,7 @@ class LTREnv(gym.Env):
         if self.test_env:
             self.df = self.df.drop(
                 columns=["summary", "description", "report_time", "report_timestamp", "status", "commit",
-                         "commit_timestamp", "files", "Unnamed: 10","bug_recency", "report_id", "rVSM_similarity",
+                         "commit_timestamp", "files", "Unnamed: 10", "bug_recency", "report_id", "rVSM_similarity",
                          "bug_frequency", "classname_similarity", "file", "collab_filter"], axis=1)
             matched = self.df[self.df['match'] == 1]
             not_matched = pd.DataFrame(columns=matched.columns)
@@ -79,7 +79,8 @@ class LTREnv(gym.Env):
             not_matched = pd.DataFrame(columns=matched.columns)
             match_counter = matched.groupby('id')['cid'].count()
             for row in match_counter.iteritems():
-                temp = self.df[(self.df['match'] != 1) & (self.df['id'] == row[0])].sample(frac=1).reset_index(drop=True).head(self.action_space_dim - row[1])
+                temp = self.df[(self.df['match'] != 1) & (self.df['id'] == row[0])].sample(frac=1).reset_index(
+                    drop=True).head(self.action_space_dim - row[1])
                 not_matched = pd.concat([not_matched, temp])
             self.df = pd.concat([matched, not_matched]).sample(frac=1).reset_index(drop=True)
         id_list = self.df.groupby('id')['cid'].count()
@@ -88,7 +89,7 @@ class LTREnv(gym.Env):
         if self.report_count is None:
             self.report_count = self.suppoerted_len
         id_list = self.df[(self.df['id'].isin(id_list)) & (self.df['match'] == 1)]['id'].unique().tolist()
-        random.seed(59) #13
+        random.seed(59)  # 13
         self.sampled_id = random.sample(id_list, min(len(id_list), self.report_count))
 
     def reset(self):
@@ -245,6 +246,65 @@ class LTREnvV2(LTREnv):
             stacked_rep = np.stack(self.all_embedding)
         self.previous_obs = stacked_rep
         return stacked_rep
+
+
+class LTREnvV3(LTREnv):
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True,
+                 caching=False, file_path="", project_list=None, test_env=False):
+        super(LTREnvV3, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count,
+                                       max_len=max_len, use_gpu=use_gpu, file_path=file_path, project_list=project_list,
+                                       test_env=test_env)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(31, 1025), dtype=np.float32)
+        self.all_embedding = []
+        self.caching = caching
+
+    def reset(self):
+        self.all_embedding = []
+        return super(LTREnvV3, self).reset()
+
+    def _LTREnv__get_observation(self):
+        self.t += 1
+
+        if len(self.all_embedding) == 0:
+            if not self.caching or not Path(
+                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
+                for row in self.filtered_df.iterrows():
+                    report_data, code_data = row[1].report, row[1].file_content
+                    report_token, code_token = self.tokenizer.batch_encode_plus([report_data], max_length=self.max_len,
+                                                                                pad_to_multiple_of=self.max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt'), \
+                                               self.tokenizer.batch_encode_plus([self.decode(code_data)],
+                                                                                max_length=self.max_len,
+                                                                                pad_to_multiple_of=self.max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt')
+                    with torch.no_grad():
+                        report_output, code_output = self.model(**report_token.to(self.dev)), self.model(
+                            **code_token.to(self.dev))
+
+                    final_rep = np.concatenate([report_output.last_hidden_state, code_output.last_hidden_state], axis=2)
+                    self.all_embedding.append(final_rep)
+                if self.caching:
+                    Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
+                    np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id),
+                            self.all_embedding)
+
+            else:
+                self.all_embedding = np.load(
+                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).tolist()
+        if len(self.picked) > 0:
+            action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
+            self.all_embedding[action_index][:, :, 768:] = np.full_like(self.all_embedding[action_index][:, :, 768:], 0,
+                                                                        dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
+            stacked_rep = np.stack(self.all_embedding)
+        else:
+            stacked_rep = np.stack(self.all_embedding)
+        self.previous_obs = stacked_rep
+        return stacked_rep.squeeze(1)
 
 
 if __name__ == "__main__":
