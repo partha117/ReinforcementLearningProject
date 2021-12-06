@@ -201,7 +201,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             buffer.add(prev_obs.cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-        if len(buffer) >= 2:
+        if len(buffer) > 50:
             samples = buffer.sample(sample_size)
             update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
