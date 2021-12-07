@@ -305,7 +305,8 @@ class LTREnvV3(LTREnv):
                 print(ex, action_index, self.current_id)
                 raise ex
         self.previous_obs = self.all_embedding
-        # print("Current_Id", self.current_id, type(self.all_embedding))
+        print("Current_Id", self.current_id, type(self.all_embedding))
+        print(self.all_embedding.shape)
         return self.all_embedding.squeeze(1)
 
 
