@@ -91,7 +91,11 @@ if __name__ == "__main__":
 
         ranked_array = np.zeros(len(env.picked))
         ranked_array[np.where(np.isin(np.array(env.picked), np.array(env.match_id)))] = 1
+        print(ranked_array)
+        print(env.picked)
+        print(env.match_id)
         precision_array.append(average_precision(ranked_array))
+        print(precision_array[-1])
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     mean_rr = all_rr.mean()
