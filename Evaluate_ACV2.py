@@ -20,7 +20,24 @@ from tqdm import tqdm
 from pathlib import Path
 from stable_baselines3.common.buffers import ReplayBuffer
 from Buffer import CustomBuffer
+def precision_at_k(r, k):
+    assert k >= 1
+    r = np.asarray(r)[:k] != 0
+    if r.size != k:
+        raise ValueError('Relevance score length < k')
+    return np.mean(r)
 
+
+def average_precision(r):
+    r = np.asarray(r) != 0
+    out = [precision_at_k(r, k + 1) for k in range(r.size) if r[k]]
+    if not out:
+        return 0.
+    return np.mean(out)
+
+
+def mean_average_precision(rs):
+    return np.mean([average_precision(r) for r in rs])
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
@@ -49,6 +66,7 @@ if __name__ == "__main__":
     model = model.to(dev)
     all_rr = []
     counts = None
+    precision_array = []
     for _ in tqdm(range(env.suppoerted_len)):
         all_rr.append(-100)
         done = False
@@ -70,15 +88,20 @@ if __name__ == "__main__":
             if all_rr[-1] < rr:
                 all_rr[-1] = rr
             counts = calculate_top_k(source=env.picked, target=env.match_id, counts=counts)
+
+        ranked_array = np.zeros(env.picked.shape[0])
+        ranked_array[np.where(np.isin(env.picked, env.match_id))] = 1
+        precision_array.append(average_precision(ranked_array))
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     mean_rr = all_rr.mean()
     actual_rank = 1.0/all_rr
+    map_value = np.array(precision_array).mean()
 
 
 
     Path(result_path).mkdir(exist_ok=True,parents=True)
-    json.dump({"mrr": mean_rr}, open(result_path + "_mrr.json", "w"))
+    json.dump({"mrr": mean_rr,"map": map_value}, open(result_path + "_mrr.json", "w"))
     np.save(result_path + "_ranks.npy", actual_rank)
     plt.figure(figsize=(500, 500))
     plt.hist(1.0/all_rr, bins=30)
