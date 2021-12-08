@@ -58,6 +58,7 @@ def run_one_iter(q_net, target_net, state, action, reward, next_state, done, opt
     current_Q_values = output.squeeze(1).gather(1, action)
     next_Q_values, _ = target_net(next_state.type(torch.float), actions=picked, hidden=hiddens)
     next_Q_values = next_Q_values.detach().squeeze(1)
+    next_Q_values[~picked.squeeze(1).type(torch.bool)] = torch.min(next_Q_values) - 3
     next_max_Q_value = torch.max(next_Q_values, dim=1).values
     next_max_Q_value = next_max_Q_value.view(next_Q_values.shape[0], 1)
     target_Q_value = reward + gamma * next_max_Q_value * (1 - done.int())
@@ -194,9 +195,9 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
 
 
 if __name__ == "__main__":
-    file_path = "/project/def-m2nagapp/partha9/LTR/"
-    cache_path = "/scratch/partha9/.buffer_cache_dqn"
-    prev_model_path = "/project/def-m2nagapp/partha9/LTR/AspectJ_dqn_model_125.0.pt"
+    file_path = "" #"/project/def-m2nagapp/partha9/LTR/"
+    cache_path = ".Buffer" #"/scratch/partha9/.buffer_cache_dqn"
+    prev_model_path = None #"/project/def-m2nagapp/partha9/LTR/AspectJ_dqn_model_125.0.pt"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_JDT_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
