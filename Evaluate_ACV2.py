@@ -89,8 +89,8 @@ if __name__ == "__main__":
                 all_rr[-1] = rr
             counts = calculate_top_k(source=env.picked, target=env.match_id, counts=counts)
 
-        ranked_array = np.zeros(env.picked.shape[0])
-        ranked_array[np.where(np.isin(env.picked, env.match_id))] = 1
+        ranked_array = np.zeros(len(env.picked))
+        ranked_array[np.where(np.isin(np.array(env.picked), np.array(env.match_id)))] = 1
         precision_array.append(average_precision(ranked_array))
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
