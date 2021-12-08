@@ -140,7 +140,7 @@ class PolicyModel(nn.Module):
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
-             lambda_val=1):
+             lambda_val=50):
     """update critic"""
     # # print("starting a2c")
     value_loss = advantages.pow(2).mean()
