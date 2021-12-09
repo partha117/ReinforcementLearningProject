@@ -110,8 +110,16 @@ class LTREnv(gym.Env):
         else:
             relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
             already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
+
+            # ------------------************************------------------------
+            current_matches = [self.df[self.df['cid'] == item]['match'].tolist()[0]for item in self.picked]
+            indices_of_match = np.argwhere(np.array(current_matches) == 1)
+            distances = (np.insert(indices_of_match, 0, 0) - np.insert(indices_of_match, len(indices_of_match), 0))[
+                        1:-1]
+            distances = 1 if (len(distances) == 0 or np.any(np.isnan(distances))) else distances.mean()
+            # ---------------------********************************----------------------------
             if already_picked:
-                reward = (3.0 * relevance) / np.log2(self.t + 1) if relevance == 1 else 0
+                reward = (3.0 * relevance) / (np.log2(self.t + 1) * distances) if relevance == 1 else 0
             else:
                 reward = -np.log2(self.t + 1)
             if return_rr:
@@ -299,8 +307,9 @@ class LTREnvV3(LTREnv):
         if len(self.picked) > 0:
             try:
                 action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
-                self.all_embedding[action_index, :, :, 768:] = np.full_like(self.all_embedding[action_index, :, :, 768:], 0,
-                                                                            dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
+                self.all_embedding[action_index, :, :, 768:] = np.full_like(
+                    self.all_embedding[action_index, :, :, 768:], 0,
+                    dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
             except Exception as ex:
                 print(ex, action_index, self.current_id)
                 raise ex
