@@ -144,7 +144,7 @@ class LTREnv(gym.Env):
             rr = -1
             done = True  # self.t == len(self.filtered_df)
             # ToDo: Check it
-            reward = -6
+            reward = -6 if len(self.picked) < self.action_space.n else 0
 
         if return_rr:
             return obs, reward, done, info, rr
