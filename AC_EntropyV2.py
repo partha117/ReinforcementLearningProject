@@ -192,7 +192,7 @@ def estimate_advantages(rewards, done, states, next_states, gamma, device, value
     return advantages
 
 
-def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device):
+def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device, multi=False):
     state, action, reward, next_state, done, info = samples
     next_state = next_state.squeeze(1)
     # # # print("update params", state.shape,next_state.shape)
@@ -208,7 +208,8 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     batch_picked = torch.tensor(np.array(
         [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(device).type(
         torch.float)
-
+    if multi:
+        device = "cuda:1"
     """get advantage estimation from the trajectories"""
     advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value, batch_hidden_value_next,
                                      batch_picked)
@@ -254,7 +255,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         while not done:
             episode_len += 1
             # # # print("Before", prev_obs.shape)
-            prev_obs = torch.Tensor(prev_obs).to(dev) if not multi else torch.Tensor(prev_obs).to("cuda:1")
+            prev_obs = torch.Tensor(prev_obs).to(dev) #if not multi else torch.Tensor(prev_obs).to("cuda:1")
             # # # print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
             # # # print("Here", prev_obs.shape)
@@ -282,7 +283,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             buffer.add(prev_obs.squeeze(0).cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-        if len(buffer) > 80:
+        if len(buffer) > 800:
             # # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             policy_loss = update_params(samples=samples, value_net=value_model, policy_net=policy_model,
