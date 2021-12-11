@@ -254,7 +254,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
         while not done:
             episode_len += 1
             # # # print("Before", prev_obs.shape)
-            prev_obs = torch.Tensor(prev_obs).to(dev)
+            prev_obs = torch.Tensor(prev_obs).to(dev) if not multi else torch.Tensor(prev_obs).to("cuda:1")
             # # # print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
             # # # print("Here", prev_obs.shape)
@@ -347,5 +347,5 @@ if __name__ == "__main__":
     obs = env.reset()
 
     buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=32, project_name=project_name, multi=True)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True)
 
