@@ -149,7 +149,7 @@ class PolicyModel(nn.Module):
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
-             lambda_val=50):
+             lambda_val=100):
     """update critic"""
     # # # print("starting a2c")
     value_loss = advantages.pow(2).mean()
@@ -165,7 +165,7 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
     # # print(dist.log_prob(action).shape, advantages.shape)
-    policy_loss = -dist.log_prob(action) * advantages.detach() + lambda_val * dist.entropy()
+    policy_loss = -dist.log_prob(action) * advantages.detach() - lambda_val * dist.entropy()
     policy_loss = policy_loss.mean()
     optimizer_policy.zero_grad()
     policy_loss.backward()
