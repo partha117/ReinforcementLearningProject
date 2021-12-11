@@ -123,12 +123,12 @@ class PolicyModel(nn.Module):
 
     def forward(self, x, actions, hidden=None):
         # # # print("policy", x.shape)
-        x_source = self.source_conv_net(x[:, :, self.report_len:, :])
-        x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
+        x_source = self.source_conv_net(x[:, :, self.report_len:, :].to("cuda:0"))
+        x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1"))
         # print("source", x_source.shape)
         # print("report", x_report.shape)
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
-        # # print("concat", x.shape)
+        print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         # print("after lstm", x.shape)
         x = x.reshape(x.size(0), -1)
