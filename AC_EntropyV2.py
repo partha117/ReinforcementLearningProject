@@ -100,7 +100,7 @@ class ValueModel(nn.Module):
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
             [x_report, x_source], axis=2)
         # # print("concat", x.shape)
-        x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
+        x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(x, (hidden[0], hidden[1]))
         # print("after lstm", x.shape)
         x = x.reshape(x.size(0), -1)
         # print("before lin", x.shape)
@@ -133,7 +133,8 @@ class PolicyModel(nn.Module):
         # print("report", x_report.shape)
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
         print("concat", x.shape)
-        x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
+        x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
+            x, (hidden[0], hidden[1]))
         # print("after lstm", x.shape)
         x = x.reshape(x.size(0), -1)
         # print("before lin", x.shape)
