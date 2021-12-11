@@ -88,25 +88,25 @@ class ValueModel(nn.Module):
             "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, 1)
 
     def forward(self, x, actions, hidden=None):
-        # # # print("policy", x.shape)
+        print("Here1")
         x_source = self.source_conv_net(
             x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(
             x[:, :, self.report_len:, :])
         x_report = self.report_conv_net(
             x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(
             x[:, 0, :self.report_len, :].unsqueeze(1))
-        # print("source", x_source.shape)
-        # print("report", x_report.shape)
+        print("Here2")
+        print("Here3")
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
             [x_report, x_source], axis=2)
-        # # print("concat", x.shape)
-        x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(x, (hidden[0], hidden[1]))
-        # print("after lstm", x.shape)
+        print("Here4")
+        x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
+            x, (hidden[0], hidden[1]))
+        print("Here5")
         x = x.reshape(x.size(0), -1)
-        # print("before lin", x.shape)
+        print("Here6")
         x = self.lin_layer2(x)
-        # print("after lin", x.shape)
-        # # print("value s", x.shape)
+        print("Here7")
         return x, [new_h, new_c]
 
 
@@ -126,26 +126,24 @@ class PolicyModel(nn.Module):
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to("cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
-        # # # print("policy", x.shape)
+        print("Here1")
         x_source = self.source_conv_net(x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(x[:, :, self.report_len:, :])
         x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
-        # print("source", x_source.shape)
-        # print("report", x_report.shape)
+        print("Here2")
+        print("Here3")
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
-        print("concat", x.shape)
+        print("Here4")
         x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
             x, (hidden[0], hidden[1]))
-        # print("after lstm", x.shape)
+        print("Here5")
         x = x.reshape(x.size(0), -1)
-        # print("before lin", x.shape)
+        print("Here6")
         x = self.lin_layer2(x)
-        # print("after lin", x.shape)
-        # # print(torch.softmax(x, dim=-1).shape, actions.shape)
+        print("Here7")
         actions = actions.squeeze(1) if actions.dim() == 3 else actions
         x = torch.softmax(x, dim=-1) * actions
         x = x / x.sum()
-        # # # # print("Policy s")
-        # print("policy shape", x.shape)
+        print("Here8")
         return x, [new_h, new_c]
 
 
@@ -316,6 +314,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
 
 
 if __name__ == "__main__":
+    os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
     parser = argparse.ArgumentParser()
     parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
     parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_ac", help='Cache Path')
