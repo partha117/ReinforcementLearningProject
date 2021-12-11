@@ -283,13 +283,14 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             buffer.add(prev_obs.squeeze(0).cpu().numpy(), obs, np.array([action]), np.array([reward]), np.array([done]),
                        [info])
             prev_obs = obs
-        if len(buffer) > 800:
+        episode_reward.append(np.array(reward_array).sum())
+        episode_len_array.append(episode_len)
+        if len(buffer) > 80:
             # # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             policy_loss = update_params(samples=samples, value_net=value_model, policy_net=policy_model,
                           policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev)
-            episode_reward.append(np.array(reward_array).sum())
-            episode_len_array.append(episode_len)
+            policy_loss = policy_loss.detach().cpu().numpy()
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(save_path + "{}_AC_Entropy_V2_policy_model_{}.pt".format(project_name, save_num - 1)):
