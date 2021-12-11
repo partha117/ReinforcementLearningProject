@@ -215,9 +215,9 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
                                      batch_picked)
 
     """perform TRPO update"""
-    policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
-             batch_picked, batch_hidden)
-    return policy_loss
+    # policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
+    #          batch_picked, batch_hidden)
+    return None
 
 
 def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30, multi=False):
