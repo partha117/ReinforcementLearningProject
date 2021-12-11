@@ -141,7 +141,7 @@ class PolicyModel(nn.Module):
         x = self.lin_layer2(x)
         print("Here7")
         actions = actions.squeeze(1) if actions.dim() == 3 else actions
-        x = torch.softmax(x, dim=-1) * actions
+        x = torch.softmax(x, dim=-1) * actions.to("cuda:1") if self.multi else actions
         x = x / x.sum()
         print("Here8")
         return x, [new_h, new_c]
