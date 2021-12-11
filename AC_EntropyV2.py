@@ -215,9 +215,9 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
                                      batch_picked)
 
     """perform TRPO update"""
-    # policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
-    #          batch_picked, batch_hidden)
-    return None
+    policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
+             batch_picked, batch_hidden)
+    return policy_loss
 
 
 def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30, multi=False):
@@ -289,7 +289,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
             # # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             policy_loss = update_params(samples=samples, value_net=value_model, policy_net=policy_model,
-                          policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev, multi=True)
+                          policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev, multi=multi)
             policy_loss = policy_loss.detach().cpu().numpy()
         if e % save_frequency == 0:
             save_num = e / save_frequency
