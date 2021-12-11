@@ -68,18 +68,24 @@ class TwoDConv(nn.Module):
 
 
 class ValueModel(nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, multi=False):
         super(ValueModel, self).__init__()
-        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConvReport(env=env, in_channel=1)
+        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(
+            env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env,
+                                                                                                               in_channel=env.action_space.n)
         self.lstm_hidden_space = 256
         self.report_len = 512
+        self.multi = multi
 
         linear_input_size = self.source_conv_net.linear_input_size + self.report_conv_net.linear_input_size
-        # print("lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size)
+        # print("lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
         self.action_space = env.action_space.n
-        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, 1)
+        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to(
+            "cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space,
+                                            batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, 1).to(
+            "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, 1)
 
     def forward(self, x, actions, hidden=None):
         # # # print("policy", x.shape)
@@ -87,7 +93,8 @@ class ValueModel(nn.Module):
         x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
         # print("source", x_source.shape)
         # print("report", x_report.shape)
-        x = torch.concat([x_report, x_source], axis=2)
+        x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
+            [x_report, x_source], axis=2)
         # # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         # print("after lstm", x.shape)
@@ -100,18 +107,19 @@ class ValueModel(nn.Module):
 
 
 class PolicyModel(nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, multi=False):
         super(PolicyModel, self).__init__()
-        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConvReport(env=env, in_channel=1)
+        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env, in_channel=env.action_space.n)
         self.lstm_hidden_space = 256
         self.report_len = 512
+        self.multi = multi
 
         linear_input_size = self.source_conv_net.linear_input_size + self.report_conv_net.linear_input_size
         # print("lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
         self.action_space = env.action_space.n
-        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
+        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to("cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to("cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
         # # # print("policy", x.shape)
@@ -119,7 +127,7 @@ class PolicyModel(nn.Module):
         x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
         # print("source", x_source.shape)
         # print("report", x_report.shape)
-        x = torch.concat([x_report, x_source], axis=2)
+        x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
         # # print("concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
         # print("after lstm", x.shape)
@@ -208,17 +216,17 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     return policy_loss
 
 
-def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30):
-    policy_model = PolicyModel(env=env)
-    value_model = ValueModel(env=env)
+def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30, multi=False):
+    policy_model = PolicyModel(env=env, multi=multi)
+    value_model = ValueModel(env=env,multi=multi)
     if prev_policy_model_path is not None:
         state_dict = torch.load(prev_policy_model_path)
         policy_model.load_state_dict(state_dict=state_dict)
     if prev_value_model_path is not None:
         state_dict = torch.load(prev_value_model_path)
         value_model.load_state_dict(state_dict=state_dict)
-    policy_model = policy_model.to(dev)
-    value_model = value_model.to(dev)
+    policy_model = policy_model.to(dev) if not multi else policy_model
+    value_model = value_model.to(dev)if not multi else value_model
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
     optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.01)
     pbar = tqdm(range(total_time_step))
@@ -335,5 +343,5 @@ if __name__ == "__main__":
     obs = env.reset()
 
     buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=32, project_name=project_name)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=32, project_name=project_name, multi=True)
 
