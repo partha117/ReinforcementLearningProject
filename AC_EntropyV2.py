@@ -73,7 +73,7 @@ class ValueModel(nn.Module):
         self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(
             env=env, in_channel=env.action_space.n)
         self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env,
-                                                                                                               in_channel=env.action_space.n)
+                                                                                                               in_channel=1)
         self.lstm_hidden_space = 256
         self.report_len = 512
         self.multi = multi
@@ -114,7 +114,7 @@ class PolicyModel(nn.Module):
     def __init__(self, env, multi=False):
         super(PolicyModel, self).__init__()
         self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env, in_channel=1)
         self.lstm_hidden_space = 256
         self.report_len = 512
         self.multi = multi
@@ -222,7 +222,7 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
 
 def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30, multi=False):
     policy_model = PolicyModel(env=env, multi=multi)
-    value_model = ValueModel(env=env,multi=multi)
+    value_model = ValueModel(env=env, multi=multi)
     if prev_policy_model_path is not None:
         state_dict = torch.load(prev_policy_model_path)
         policy_model.load_state_dict(state_dict=state_dict)
