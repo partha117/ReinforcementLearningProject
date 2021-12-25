@@ -57,7 +57,7 @@ if __name__ == "__main__":
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using {}".format(dev))
     env = LTREnvV4(data_path=file_path + test_data_path, model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=4096,report_max_len=512,
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,report_max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], test_env=True, window_size=500)
 
     model = NewPolicyModel(env=env)
