@@ -329,7 +329,7 @@ class LTREnvV4(LTREnv):
                                        project_list=project_list,
                                        test_env=test_env)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(31, 4704, 768), dtype=np.float32)
+                                            shape=(31, (code_max_len % window_size) + code_max_len + report_max_len, 768), dtype=np.float32)
         self.window_size = window_size
         self.embedding_size = 512
         self.report_max_len = report_max_len
