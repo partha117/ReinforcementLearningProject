@@ -120,7 +120,7 @@ class PolicyModel(nn.Module):
         self.multi = multi
 
         linear_input_size = self.source_conv_net.linear_input_size + self.report_conv_net.linear_input_size
-        # # print("lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
+        print("policy lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
         self.action_space = env.action_space.n
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to("cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
         self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to("cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
@@ -132,7 +132,7 @@ class PolicyModel(nn.Module):
         # print("Here2")
         # print("Here3")
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
-        # print("Here4")
+        print("policy concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
             x, (hidden[0], hidden[1]))
         # print("Here5")
