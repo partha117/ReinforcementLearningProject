@@ -130,7 +130,7 @@ class PolicyModel(nn.Module):
         x_source = self.source_conv_net(x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(x[:, :, self.report_len:, :])
         x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
         # print("Here2")
-        # print("Here3")
+        print("policy got", x_source.shape, x_report.shape)
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
         print("policy concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
