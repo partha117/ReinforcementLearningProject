@@ -55,8 +55,8 @@ class TwoDConv(nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[2], stride=4),stride=4),stride=3)
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1] - env.report_max_len, stride=4),stride=4),stride=3)
-        # # print("shape", env.observation_space.shape[2], env.observation_space.shape[1] - env.report_max_len)
-        # # print("convw, convh", convw, convh)
+        print("shape", env.observation_space.shape[2], env.observation_space.shape[1] - env.report_max_len)
+        print("convw, convh", convw, convh)
         self.linear_input_size = convw * convh #* 31
 
     def forward(self, x):
@@ -96,7 +96,7 @@ class ValueModel(nn.Module):
             x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(
             x[:, 0, :self.report_len, :].unsqueeze(1))
         # print("Here2")
-        # print("Here3")
+        print("report shape", x_report.shape, "source shape", x_source.shape)
         x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
             [x_report, x_source], axis=2)
         # print("Here4")
