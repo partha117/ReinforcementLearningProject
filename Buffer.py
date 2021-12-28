@@ -2,6 +2,7 @@ from collections import deque
 import random
 import numpy as np
 import os
+import gzip
 import zlib
 from pathlib import Path
 import torch
@@ -98,9 +99,13 @@ class CustomBuffer(object):
         Path(self.cache).mkdir(parents=True, exist_ok=True)
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
-        np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
+        with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, len(self.action)), "w") as state_file:
+            np.save(state_file, arr=state)
+        # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
         # self.next_state.append(next_state)
-        np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
+        with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
+            np.save(next_state_file, arr=next_state)
+        # np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
@@ -108,9 +113,24 @@ class CustomBuffer(object):
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
+        # try:
+        #     state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
+        #                                                     np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
+        #                                                         indices]
         try:
-            state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
-                                                            np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
+            state_temp = []
+            next_state_temp = []
+            for item in indices:
+                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
+                    state_temp.append(np.load(state_file))
+                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
+                    next_state_temp.append(np.load(next_state_file))
+            state = np.array(state_temp)
+            next_state = np.array(next_state_temp)
+            del state_temp
+            del next_state_temp
+            action, reward, done, info = np.array(self.action)[indices], \
+                                                            np.array(self.reward)[indices], np.array(self.done)[indices], np.array(self.info)[
                                                                 indices]
         except Exception as ex:
             print(self.action)
