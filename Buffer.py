@@ -87,7 +87,7 @@ def reduce_dimension_by_mean_pooling(embeddings, attention_mask, to_numpy=False)
     return mean_pooled.numpy() if to_numpy else mean_pooled
 
 class CustomBuffer(object):
-    def __init__(self, buffer_length, cache_path=".Buffer"):
+    def __init__(self, buffer_length, cache_path=".Buffer", delete=True):
         self.state = []
         self.next_state = []
         self.action = []
@@ -95,7 +95,8 @@ class CustomBuffer(object):
         self.done = []
         self.info = []
         self.cache = cache_path
-        os.system("rm -r {}".format(self.cache))
+        if delete:
+            os.system("rm -r {}".format(self.cache))
         Path(self.cache).mkdir(parents=True, exist_ok=True)
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)

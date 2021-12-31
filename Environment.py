@@ -8,7 +8,19 @@ import random
 from transformers import AutoModel, AutoTokenizer
 from pathlib import Path
 import math
+def precision_at_k(r, k):
+    assert k >= 1
+    r = np.asarray(r)[:k] != 0
+    if r.size != k:
+        raise ValueError('Relevance score length < k')
+    return np.mean(r)
 
+def average_precision(r):
+    r = np.asarray(r) != 0
+    out = [precision_at_k(r, k + 1) for k in range(r.size) if r[k]]
+    if not out:
+        return 0.
+    return np.mean(out)
 
 class LTREnv(gym.Env):
     def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, max_len=512, use_gpu=True,
@@ -104,30 +116,41 @@ class LTREnv(gym.Env):
         # self.picked.append(random.sample(self.remained, 1)[0])
         # self.remained.remove(self.picked[-1])
         return self.__get_observation()
-
     def __calculate_reward(self, return_rr=False):
         if self.t == 0:
             return 0, 0 if return_rr else 0, None
         else:
-            relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
-            already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
-
-            # ------------------************************------------------------
             current_matches = [self.df[self.df['cid'] == item]['match'].tolist()[0] for item in self.picked]
-            indices_of_match = np.argwhere(np.array(current_matches) == 1)
-            distances = (np.insert(indices_of_match, 0, 0) - np.insert(indices_of_match, len(indices_of_match), 0))[
-                        1:-1]
-            distances = 1 if (len(distances) == 0 or np.any(np.isnan(distances))) else distances.mean()
-            # ---------------------********************************----------------------------
-            if already_picked:
-                reward = (3.0 * relevance) / (np.log2(self.t + 1) * distances) if relevance == 1 else 0
-            else:
-                reward = -np.log2(self.t + 1)
+            current_average_precision = average_precision(current_matches)
+            reward = current_average_precision
             if return_rr:
                 positions = self.df[self.df['cid'].isin(self.picked)]['match'].to_numpy()
                 max_position = np.argmax(positions) + 1 if any(positions == 1) else -1
                 return reward, 1.0 / max_position
             return reward, None
+    # def __calculate_reward(self, return_rr=False):
+    #     if self.t == 0:
+    #         return 0, 0 if return_rr else 0, None
+    #     else:
+    #         relevance = self.df[self.df['cid'] == self.picked[-1]]['match'].tolist()[0]
+    #         already_picked = any(self.df[self.df['cid'].isin(self.picked)]['match'].tolist())
+    #
+    #         # ------------------************************------------------------
+    #         current_matches = [self.df[self.df['cid'] == item]['match'].tolist()[0] for item in self.picked]
+    #         indices_of_match = np.argwhere(np.array(current_matches) == 1)
+    #         distances = (np.insert(indices_of_match, 0, 0) - np.insert(indices_of_match, len(indices_of_match), 0))[
+    #                     1:-1]
+    #         distances = 1 if (len(distances) == 0 or np.any(np.isnan(distances))) else distances.mean()
+    #         # ---------------------********************************----------------------------
+    #         if already_picked:
+    #             reward = (3.0 * relevance) / (np.log2(self.t + 1) * distances) if relevance == 1 else 0
+    #         else:
+    #             reward = -np.log2(self.t + 1)
+    #         if return_rr:
+    #             positions = self.df[self.df['cid'].isin(self.picked)]['match'].to_numpy()
+    #             max_position = np.argmax(positions) + 1 if any(positions == 1) else -1
+    #             return reward, 1.0 / max_position
+    #         return reward, None
 
     def step(self, action, return_rr=False):
         temp = self.filtered_df['cid'].tolist()[action]

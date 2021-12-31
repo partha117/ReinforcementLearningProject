@@ -220,7 +220,7 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     return policy_loss
 
 
-def train_actor_critic(total_time_step, sample_size, project_name, save_frequency=30, multi=False):
+def train_actor_critic(total_time_step, sample_size, project_name, start_from, save_frequency=30, multi=False):
     policy_model = PolicyModel(env=env, multi=multi)
     value_model = ValueModel(env=env, multi=multi)
     if prev_policy_model_path is not None:
@@ -233,7 +233,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, save_frequenc
     value_model = value_model.to(dev)if not multi else value_model
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
     optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.01)
-    pbar = tqdm(range(total_time_step))
+    pbar = tqdm(range(start_from, total_time_step))
     episode_len_array = []
     episode_reward = []
     policy_loss = None
@@ -324,6 +324,7 @@ if __name__ == "__main__":
     parser.add_argument('--prev_value_model_path', default=None, help='Trained Value Path')
     parser.add_argument('--train_data_path', help='Training Data Path')
     parser.add_argument('--save_path', help='Save Path')
+    parser.add_argument('--start_from', default=0, help='Start from')
     parser.add_argument('--project_name', help='Project Name')
     options = parser.parse_args()
     file_path = options.file_path
@@ -333,6 +334,7 @@ if __name__ == "__main__":
     train_data_path = options.train_data_path
     project_name = options.project_name
     save_path = options.save_path
+    start_from = int(options.start_from)
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     # file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
     # cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
@@ -348,6 +350,6 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name],window_size=500)
     obs = env.reset()
 
-    buffer = CustomBuffer(6000, cache_path=cache_path)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True)
+    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0))
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True, start_from=start_from)
 
