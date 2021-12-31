@@ -1,3 +1,4 @@
+import pickle
 from collections import deque
 import random
 import numpy as np
@@ -97,7 +98,25 @@ class CustomBuffer(object):
         self.cache = cache_path
         if delete:
             os.system("rm -r {}".format(self.cache))
+        else:
+            with open("{}/Reward.pickle".format(self.cache), "rb") as f:
+                self.reward = pickle.load(f)
+            with open("{}/Action.pickle".format(self.cache), "rb") as f:
+                self.action = pickle.load(f)
+            with open("{}/Done.pickle".format(self.cache), "rb") as f:
+                self.done = pickle.load(f)
+            with open("{}/Info.pickle".format(self.cache), "rb") as f:
+                self.info = pickle.load(f)
         Path(self.cache).mkdir(parents=True, exist_ok=True)
+    def save_others(self):
+        with open("{}/Reward.pickle".format(self.cache), "wb") as f:
+            pickle.dump(self.reward, f)
+        with open("{}/Action.pickle".format(self.cache), "wb") as f:
+            pickle.dump(self.action, f)
+        with open("{}/Done.pickle".format(self.cache), "wb") as f:
+            pickle.dump(self.done, f)
+        with open("{}/Info.pickle".format(self.cache), "wb") as f:
+            pickle.dump(self.info, f)
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, len(self.action)), "w") as state_file:

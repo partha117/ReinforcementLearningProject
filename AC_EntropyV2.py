@@ -3,7 +3,7 @@ import psutil
 import argparse
 import os
 from pathlib import Path
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import torch
 from torch import nn
 from Buffer import CustomBuffer
@@ -233,7 +233,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
     value_model = value_model.to(dev)if not multi else value_model
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
     optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.01)
-    pbar = tqdm(range(start_from, total_time_step))
+    pbar = trange(start_from, total_time_step)
     episode_len_array = []
     episode_reward = []
     policy_loss = None
@@ -312,6 +312,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
 
             with open(save_path + "{}_AC_Entropy_V2_Episode_Length.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_len_array, f)
+            buffer.save_others()
     return policy_model, value_model
 
 
