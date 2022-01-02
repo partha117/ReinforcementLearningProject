@@ -151,6 +151,8 @@ class CustomBuffer(object):
             del self.thread_loaded_next_state
         self.thread_loaded_state = np.array(state_temp)
         self.thread_loaded_next_state = np.array(next_state_temp)
+        del state_temp
+        del next_state_temp
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
