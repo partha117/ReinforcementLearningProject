@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1               # number of MPI processes
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=12G      # memory; default unit is megabytes
-#SBATCH --time=60:20:00           # time (DD-HH:MM)
+#SBATCH --time=4:20:00           # time (DD-HH:MM)
 #SBATCH --gres=gpu:v100l:2
 #SBATCH --output=%x-%j.out
 #SBATCH --mail-user=p9chakra@uwtaerloo.ca
@@ -15,5 +15,5 @@ export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/AC_EntropyV2.
 --prev_policy_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/AspectJ_AC_Entropy_V2_policy_model_14.0.pt \
 --prev_value_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/AspectJ_AC_Entropy_V2_value_model_14.0.pt \
 --save_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/ \
---start_from 0 \
+--start_from 450 \
 --project_name AspectJ
