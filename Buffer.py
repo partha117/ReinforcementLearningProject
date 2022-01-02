@@ -11,6 +11,7 @@ import pandas as pd
 from transformers import RobertaTokenizer, AutoModel, AutoTokenizer
 from stable_baselines3.common.buffers import ReplayBuffer
 from labml_nn.rl.dqn.replay_buffer import ReplayBuffer as PriorityReplayBuffer
+from threading import  Thread
 def get_priority_replay_buffer(buffer_size,env,alpha=0.6):
     buffer = PriorityReplayBuffer(buffer_size,alpha=alpha)
     current_size = 0
@@ -96,6 +97,8 @@ class CustomBuffer(object):
         self.done = []
         self.info = []
         self.cache = cache_path
+        self.thread_loaded_state = None
+        self.thread_loaded_next_state = None
         if delete:
             os.system("rm -r {}".format(self.cache))
         else:
@@ -117,19 +120,31 @@ class CustomBuffer(object):
             pickle.dump(self.done, f)
         with open("{}/Info.pickle".format(self.cache), "wb") as f:
             pickle.dump(self.info, f)
-    def add(self, state, next_state, action, reward, done, info):
-        # self.state.append(state)
+    def save_in_thread(self, state, next_state):
         with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, len(self.action)), "w") as state_file:
             np.save(state_file, arr=state)
-        # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
-        # self.next_state.append(next_state)
         with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
             np.save(next_state_file, arr=next_state)
+    def add(self, state, next_state, action, reward, done, info):
+        # self.state.append(state)
+        # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
+        # self.next_state.append(next_state)
         # np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
+        Thread(target=self.save_in_thread, args=(state, next_state)).start()
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
         self.info = self.info + info
+    def load_in_thread(self, indices):
+        state_temp = []
+        next_state_temp = []
+        for item in indices:
+            with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
+                state_temp.append(np.load(state_file))
+            with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
+                next_state_temp.append(np.load(next_state_file))
+        self.thread_loaded_state = np.array(state_temp)
+        self.thread_loaded_next_state = np.array(next_state_temp)
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
@@ -138,17 +153,10 @@ class CustomBuffer(object):
         #                                                     np.array(self.reward)[indices], np.array([np.load("{}/{}_next_state.npy".format(self.cache, item)) for item in indices]), np.array(self.done)[indices], np.array(self.info)[
         #                                                         indices]
         try:
-            state_temp = []
-            next_state_temp = []
-            for item in indices:
-                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
-                    state_temp.append(np.load(state_file))
-                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
-                    next_state_temp.append(np.load(next_state_file))
-            state = np.array(state_temp)
-            next_state = np.array(next_state_temp)
-            del state_temp
-            del next_state_temp
+            if self.thread_loaded_state is None or self.thread_loaded_next_state is None:
+                self.load_in_thread(indices=indices)
+            state, next_state = self.thread_loaded_state, self.thread_loaded_next_state
+            Thread(target=self.load_in_thread, args=(indices)).start()
             action, reward, done, info = np.array(self.action)[indices], \
                                                             np.array(self.reward)[indices], np.array(self.done)[indices], np.array(self.info)[
                                                                 indices]
