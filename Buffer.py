@@ -125,6 +125,8 @@ class CustomBuffer(object):
             np.save(state_file, arr=state)
         with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
             np.save(next_state_file, arr=next_state)
+        del state
+        del next_state
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
@@ -143,6 +145,10 @@ class CustomBuffer(object):
                 state_temp.append(np.load(state_file))
             with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
                 next_state_temp.append(np.load(next_state_file))
+        if self.thread_loaded_state is not None:
+            del self.thread_loaded_state
+        if self.thread_loaded_next_state is not None:
+            del self.thread_loaded_next_state
         self.thread_loaded_state = np.array(state_temp)
         self.thread_loaded_next_state = np.array(next_state_temp)
     def sample(self, size):
