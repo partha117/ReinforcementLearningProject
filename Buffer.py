@@ -156,7 +156,7 @@ class CustomBuffer(object):
             if self.thread_loaded_state is None or self.thread_loaded_next_state is None:
                 self.load_in_thread(indices=indices)
             state, next_state = self.thread_loaded_state, self.thread_loaded_next_state
-            Thread(target=self.load_in_thread, args=(indices)).start()
+            Thread(target=self.load_in_thread, args=(indices,)).start()
             action, reward, done, info = np.array(self.action)[indices], \
                                                             np.array(self.reward)[indices], np.array(self.done)[indices], np.array(self.info)[
                                                                 indices]
