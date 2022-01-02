@@ -1,6 +1,7 @@
 import pickle
 from collections import deque
 import random
+import psutil
 import numpy as np
 import os
 import gzip
@@ -138,6 +139,7 @@ class CustomBuffer(object):
         self.done.append(done)
         self.info = self.info + info
     def load_in_thread(self, indices):
+        print("Before memory", psutil.Process().memory_info().rss / (1024 * 1024))
         state_temp = []
         next_state_temp = []
         for item in indices:
@@ -153,6 +155,7 @@ class CustomBuffer(object):
         self.thread_loaded_next_state = np.array(next_state_temp)
         del state_temp
         del next_state_temp
+        print("After memory", psutil.Process().memory_info().rss / (1024 * 1024))
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
