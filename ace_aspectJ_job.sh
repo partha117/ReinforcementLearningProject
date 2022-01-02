@@ -2,7 +2,7 @@
 #SBATCH --account=def-m2nagapp
 #SBATCH --ntasks=1               # number of MPI processes
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=18G      # memory; default unit is megabytes
+#SBATCH --mem-per-cpu=12G      # memory; default unit is megabytes
 #SBATCH --time=4:20:00           # time (DD-HH:MM)
 #SBATCH --gres=gpu:v100l:2
 #SBATCH --output=%x-%j.out

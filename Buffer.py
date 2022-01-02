@@ -1,4 +1,5 @@
 import pickle
+import sys
 from collections import deque
 import random
 import psutil
@@ -128,6 +129,7 @@ class CustomBuffer(object):
             np.save(next_state_file, arr=next_state)
         del state
         del next_state
+        sys.exit()
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
@@ -156,6 +158,7 @@ class CustomBuffer(object):
         del state_temp
         del next_state_temp
         print("After memory", psutil.Process().memory_info().rss / (1024 * 1024))
+        sys.exit()
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
