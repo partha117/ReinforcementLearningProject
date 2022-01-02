@@ -240,6 +240,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
     policy_loss = None
     for e in pbar:
         # # # # print("starting pbar")
+        print("current e", e)
         done = False
         prev_obs = env.reset()
         # # # # print("Got observation")
