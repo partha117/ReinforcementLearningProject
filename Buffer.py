@@ -129,7 +129,6 @@ class CustomBuffer(object):
             np.save(next_state_file, arr=next_state)
         del state
         del next_state
-        sys.exit()
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
