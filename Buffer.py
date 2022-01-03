@@ -1,5 +1,6 @@
 import pickle
 import sys
+import time
 from collections import deque
 import random
 import psutil
@@ -91,7 +92,7 @@ def reduce_dimension_by_mean_pooling(embeddings, attention_mask, to_numpy=False)
     return mean_pooled.numpy() if to_numpy else mean_pooled
 
 class CustomBuffer(object):
-    def __init__(self, buffer_length, cache_path=".Buffer", delete=True):
+    def __init__(self, buffer_length, start_from, cache_path=".Buffer", delete=True):
         self.state = []
         self.next_state = []
         self.action = []
@@ -105,13 +106,13 @@ class CustomBuffer(object):
             os.system("rm -r {}".format(self.cache))
         else:
             with open("{}/Reward.pickle".format(self.cache), "rb") as f:
-                self.reward = pickle.load(f)
+                self.reward = pickle.load(f)[: start_from]
             with open("{}/Action.pickle".format(self.cache), "rb") as f:
-                self.action = pickle.load(f)
+                self.action = pickle.load(f)[:start_from]
             with open("{}/Done.pickle".format(self.cache), "rb") as f:
-                self.done = pickle.load(f)
+                self.done = pickle.load(f)[:start_from]
             with open("{}/Info.pickle".format(self.cache), "rb") as f:
-                self.info = pickle.load(f)
+                self.info = pickle.load(f)[:start_from]
         Path(self.cache).mkdir(parents=True, exist_ok=True)
     def save_others(self):
         with open("{}/Reward.pickle".format(self.cache), "wb") as f:
@@ -129,8 +130,7 @@ class CustomBuffer(object):
         with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
             np.save(next_state_file, arr=next_state)
             print("saving next state")
-        del state
-        del next_state
+        time.sleep(10)
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
@@ -145,19 +145,11 @@ class CustomBuffer(object):
         # print("Before memory", psutil.Process().memory_info().rss / (1024 * 1024))
         state_temp = []
         next_state_temp = []
-        for i, item in enumerate(indices):
-            try:
-                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
-                    state_temp.append(np.load(state_file))
-                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
-                    next_state_temp.append(np.load(next_state_file))
-            except Exception as ex:
-                print("index {} not readable".format(item))
-                i = i - 1 if i != 0 else i + 1
-                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, indices[i]), "r") as state_file:
-                    state_temp.append(np.load(state_file))
-                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, indices[i]), "r") as next_state_file:
-                    next_state_temp.append(np.load(next_state_file))
+        for item in indices:
+            with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
+                state_temp.append(np.load(state_file))
+            with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
+                next_state_temp.append(np.load(next_state_file))
         # if self.thread_loaded_state is not None:
         #     del self.thread_loaded_state
         # if self.thread_loaded_next_state is not None:

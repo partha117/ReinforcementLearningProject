@@ -353,6 +353,6 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name],window_size=500)
     obs = env.reset()
 
-    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0))
+    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from*31)
     policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True, start_from=start_from)
 
