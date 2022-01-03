@@ -123,21 +123,21 @@ class CustomBuffer(object):
             pickle.dump(self.done, f)
         with open("{}/Info.pickle".format(self.cache), "wb") as f:
             pickle.dump(self.info, f)
-    def save_in_thread(self, state, next_state):
-        with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, len(self.action)), "w") as state_file:
+    def save_in_thread(self, state, next_state, index):
+        with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, index), "w") as state_file:
             np.save(state_file, arr=state)
             state_file.flush()
-            print("saving state {}".format(len(self.action)))
-        with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
+            print("saving state {}".format(index))
+        with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, index), "w") as next_state_file:
             np.save(next_state_file, arr=next_state)
             next_state_file.flush()
-            print("saving next state {}".format(len(self.action)))
+            print("saving next state {}".format(index))
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
         # self.next_state.append(next_state)
         # np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
-        Thread(target=self.save_in_thread, args=(state, next_state)).start()
+        Thread(target=self.save_in_thread, args=(state, next_state, len(self.action))).start()
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
