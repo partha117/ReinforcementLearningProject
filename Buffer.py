@@ -142,15 +142,22 @@ class CustomBuffer(object):
         self.done.append(done)
         self.info = self.info + info
     def load_in_thread(self, indices, thread=True):
-        print("Before memory", psutil.Process().memory_info().rss / (1024 * 1024))
+        # print("Before memory", psutil.Process().memory_info().rss / (1024 * 1024))
         state_temp = []
         next_state_temp = []
-        for item in indices:
-            print("Index", item)
-            with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
-                state_temp.append(np.load(state_file))
-            with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
-                next_state_temp.append(np.load(next_state_file))
+        for i, item in enumerate(indices):
+            try:
+                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
+                    state_temp.append(np.load(state_file))
+                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
+                    next_state_temp.append(np.load(next_state_file))
+            except Exception as ex:
+                print("index {} not readable".format(item))
+                i = i - 1 if i != 0 else i + 1
+                with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, indices[i]), "r") as state_file:
+                    state_temp.append(np.load(state_file))
+                with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, indices[i]), "r") as next_state_file:
+                    next_state_temp.append(np.load(next_state_file))
         # if self.thread_loaded_state is not None:
         #     del self.thread_loaded_state
         # if self.thread_loaded_next_state is not None:
