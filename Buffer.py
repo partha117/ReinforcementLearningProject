@@ -146,6 +146,7 @@ class CustomBuffer(object):
         state_temp = []
         next_state_temp = []
         for item in indices:
+            print("Index", item)
             with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, item), "r") as state_file:
                 state_temp.append(np.load(state_file))
             with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
@@ -158,7 +159,7 @@ class CustomBuffer(object):
         self.thread_loaded_next_state = np.array(next_state_temp)
         del state_temp
         del next_state_temp
-        print("After memory", psutil.Process().memory_info().rss / (1024 * 1024))
+        # print("After memory", psutil.Process().memory_info().rss / (1024 * 1024))
         if thread:
             sys.exit()
     def sample(self, size):
