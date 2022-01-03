@@ -163,7 +163,7 @@ class CustomBuffer(object):
         if thread:
             sys.exit()
     def sample(self, size):
-        indices = np.random.choice(len(self.action), size)
+        indices = np.random.choice(len(self.action)-30, size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
         # try:
         #     state, action, reward, next_state, done, info = np.array([np.load("{}/{}_state.npy".format(self.cache, item)) for item in indices]), np.array(self.action)[indices], \
