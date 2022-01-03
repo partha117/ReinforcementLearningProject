@@ -1,5 +1,6 @@
 import pickle
 import sys
+import threading
 import time
 from collections import deque
 import random
@@ -137,7 +138,11 @@ class CustomBuffer(object):
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
         # self.next_state.append(next_state)
         # np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
-        Thread(target=self.save_in_thread, args=(state, next_state, len(self.action))).start()
+        print("Total Thread {}".format(len(threading.enumerate())))
+        if len(threading.enumerate()) > 6:
+            self.save_in_thread(state, next_state, len(self.action))
+        else:
+            Thread(target=self.save_in_thread, args=(state, next_state, len(self.action))).start()
         self.action.append(action)
         self.reward.append(reward)
         self.done.append(done)
@@ -151,10 +156,6 @@ class CustomBuffer(object):
                 state_temp.append(np.load(state_file))
             with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, item), "r") as next_state_file:
                 next_state_temp.append(np.load(next_state_file))
-        # if self.thread_loaded_state is not None:
-        #     del self.thread_loaded_state
-        # if self.thread_loaded_next_state is not None:
-        #     del self.thread_loaded_next_state
         self.thread_loaded_state = np.array(state_temp)
         self.thread_loaded_next_state = np.array(next_state_temp)
         del state_temp
@@ -178,7 +179,7 @@ class CustomBuffer(object):
                                                             np.array(self.reward)[indices], np.array(self.done)[indices], np.array(self.info)[
                                                                 indices]
         except Exception as ex:
-            print(self.action)
+            print(indices)
             raise ex
         return torch.from_numpy(state), torch.from_numpy(action), torch.from_numpy(reward), torch.from_numpy(next_state), torch.from_numpy(done), info
     def __len__(self):
