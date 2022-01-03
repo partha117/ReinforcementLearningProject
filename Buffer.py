@@ -126,10 +126,12 @@ class CustomBuffer(object):
     def save_in_thread(self, state, next_state):
         with gzip.GzipFile("{}/{}_state.npy.gz".format(self.cache, len(self.action)), "w") as state_file:
             np.save(state_file, arr=state)
-            print("saving state")
+            state_file.flush()
+            print("saving state {}".format(len(self.action)))
         with gzip.GzipFile("{}/{}_next_state.npy.gz".format(self.cache, len(self.action)), "w") as next_state_file:
             np.save(next_state_file, arr=next_state)
-            print("saving next state")
+            next_state_file.flush()
+            print("saving next state {}".format(len(self.action)))
     def add(self, state, next_state, action, reward, done, info):
         # self.state.append(state)
         # np.save("{}/{}_state.npy".format(self.cache, len(self.action)), state)
