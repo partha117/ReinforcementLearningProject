@@ -140,7 +140,7 @@ class CustomBuffer(object):
         self.reward.append(reward)
         self.done.append(done)
         self.info = self.info + info
-    def load_in_thread(self, indices):
+    def load_in_thread(self, indices, thread=True):
         print("Before memory", psutil.Process().memory_info().rss / (1024 * 1024))
         state_temp = []
         next_state_temp = []
@@ -158,7 +158,8 @@ class CustomBuffer(object):
         del state_temp
         del next_state_temp
         print("After memory", psutil.Process().memory_info().rss / (1024 * 1024))
-        sys.exit()
+        if thread:
+            sys.exit()
     def sample(self, size):
         indices = np.random.choice(len(self.action), size)
         # state, action, reward, next_state, done, info = np.array(self.state)[indices], np.array(self.action)[indices], np.array(self.reward)[indices], np.array(self.next_state)[indices], np.array(self.done)[indices], np.array(self.info)[indices]
@@ -168,7 +169,7 @@ class CustomBuffer(object):
         #                                                         indices]
         try:
             if self.thread_loaded_state is None or self.thread_loaded_next_state is None:
-                self.load_in_thread(indices=indices)
+                self.load_in_thread(indices=indices, thread=False)
             state, next_state = self.thread_loaded_state, self.thread_loaded_next_state
             Thread(target=self.load_in_thread, args=(indices,)).start()
             action, reward, done, info = np.array(self.action)[indices], \
