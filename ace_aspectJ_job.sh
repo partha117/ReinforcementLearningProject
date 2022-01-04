@@ -15,5 +15,5 @@ export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/AC_EntropyV2.
 --prev_policy_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/AspectJ_AC_Entropy_V2_policy_model_16.0.pt \
 --prev_value_model_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/AspectJ_AC_Entropy_V2_value_model_16.0.pt \
 --save_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/AspectJ/ \
---start_from 450 \
+--start_from 300 \
 --project_name AspectJ
