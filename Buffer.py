@@ -139,7 +139,7 @@ class CustomBuffer(object):
         # self.next_state.append(next_state)
         # np.save("{}/{}_next_state.npy".format(self.cache, len(self.action)), next_state)
         print("Total Thread {}".format(len(threading.enumerate())))
-        if len(threading.enumerate()) > 6:
+        if len(threading.enumerate()) > 6 or len(self.action) < 60:
             self.save_in_thread(state, next_state, len(self.action))
         else:
             Thread(target=self.save_in_thread, args=(state, next_state, len(self.action))).start()
