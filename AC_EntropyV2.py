@@ -231,8 +231,8 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
         value_model.load_state_dict(state_dict=state_dict)
     policy_model = policy_model.to(dev) if not multi else policy_model
     value_model = value_model.to(dev)if not multi else value_model
-    optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.01)
-    optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.01)
+    optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.001)
+    optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.001)
     print("Loop starting from", start_from)
     pbar = trange(start_from, total_time_step)
     episode_len_array = []
