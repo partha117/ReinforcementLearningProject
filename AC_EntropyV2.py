@@ -13,6 +13,7 @@ import torch.nn.functional as F
 import numpy as np
 import pickle
 
+
 class TwoDConvReport(nn.Module):
     def __init__(self, in_channel, env):
         super(TwoDConvReport, self).__init__()
@@ -31,7 +32,7 @@ class TwoDConvReport(nn.Module):
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.report_max_len, stride=3), stride=3),
                                 stride=3)
         # # print("report", convw, convh)
-        self.linear_input_size = convw * convh #* 4
+        self.linear_input_size = convw * convh  # * 4
 
     def forward(self, x):
         seq_length = x.size(1)
@@ -40,6 +41,8 @@ class TwoDConvReport(nn.Module):
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), 8, -1)
         return x
+
+
 class TwoDConv(nn.Module):
     def __init__(self, in_channel, env):
         super(TwoDConv, self).__init__()
@@ -53,11 +56,14 @@ class TwoDConv(nn.Module):
         def conv2d_size_out(size, kernel_size=5, stride=4):
             return (size - (kernel_size - 1) - 1) // stride + 1
 
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[2], stride=4),stride=4),stride=3)
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1] - env.report_max_len, stride=4),stride=4),stride=3)
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[2], stride=4), stride=4),
+                                stride=3)
+        convh = conv2d_size_out(
+            conv2d_size_out(conv2d_size_out(env.observation_space.shape[1] - env.report_max_len, stride=4), stride=4),
+            stride=3)
         # print("shape", env.observation_space.shape[2], env.observation_space.shape[1] - env.report_max_len)
         # print("convw, convh", convw, convh)
-        self.linear_input_size = convw * convh #* 31
+        self.linear_input_size = convw * convh  # * 31
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -113,8 +119,10 @@ class ValueModel(nn.Module):
 class PolicyModel(nn.Module):
     def __init__(self, env, multi=False):
         super(PolicyModel, self).__init__()
-        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(env=env, in_channel=env.action_space.n)
-        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env, in_channel=1)
+        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(
+            env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env,
+                                                                                                               in_channel=1)
         self.lstm_hidden_space = 256
         self.report_len = 512
         self.multi = multi
@@ -122,16 +130,24 @@ class PolicyModel(nn.Module):
         linear_input_size = self.source_conv_net.linear_input_size + self.report_conv_net.linear_input_size
         # print("policy lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
         self.action_space = env.action_space.n
-        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to("cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to("cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
+        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to(
+            "cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space,
+                                            batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to(
+            "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
 
     def forward(self, x, actions, hidden=None):
         # print("Here1")
-        x_source = self.source_conv_net(x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(x[:, :, self.report_len:, :])
-        x_report = self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(x[:, 0, :self.report_len, :].unsqueeze(1))
+        x_source = self.source_conv_net(
+            x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(
+            x[:, :, self.report_len:, :])
+        x_report = self.report_conv_net(
+            x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(
+            x[:, 0, :self.report_len, :].unsqueeze(1))
         # print("Here2")
         # print("policy got", x_source.shape, x_report.shape)
-        x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat([x_report, x_source], axis=2)
+        x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
+            [x_report, x_source], axis=2)
         # print("policy concat", x.shape)
         x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
             x, (hidden[0], hidden[1]))
@@ -145,7 +161,6 @@ class PolicyModel(nn.Module):
         x = x / x.sum()
         # print("Here8")
         return x, [new_h, new_c]
-
 
 
 def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, batch_picked, batch_hidden,
@@ -178,7 +193,8 @@ def to_device(device, *args):
     return [x.to(device) for x in args]
 
 
-def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value, batch_hidden_value_next,
+def estimate_advantages(rewards, done, states, next_states, gamma, device, value_model, batch_hidden_value,
+                        batch_hidden_value_next,
                         batch_picked):
     # # # # print("startin advantage")
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
@@ -211,16 +227,23 @@ def update_params(samples, value_net, policy_net, policy_optimizer, value_optimi
     if multi:
         device = "cuda:1"
     """get advantage estimation from the trajectories"""
-    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value, batch_hidden_value_next,
+    advantages = estimate_advantages(reward, done, state, next_state, gamma, device, value_net, batch_hidden_value,
+                                     batch_hidden_value_next,
                                      batch_picked)
 
     """perform TRPO update"""
-    policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device), advantages,
-             batch_picked, batch_hidden)
+    policy_loss = a2c_step(policy_net, policy_optimizer, value_optimizer, state.type(torch.float).to(device),
+                           advantages,
+                           batch_picked, batch_hidden)
     return policy_loss
 
 
-def train_actor_critic(total_time_step, sample_size, project_name, start_from, save_frequency=30, multi=False):
+def update_learning_rate(optimizer, factor):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] / factor
+
+
+def train_actor_critic(total_time_step, sample_size, project_name, start_from, save_frequency=30, multi=False, lr_frequency=200):
     policy_model = PolicyModel(env=env, multi=multi)
     value_model = ValueModel(env=env, multi=multi)
     if prev_policy_model_path is not None:
@@ -230,7 +253,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
         state_dict = torch.load(prev_value_model_path)
         value_model.load_state_dict(state_dict=state_dict)
     policy_model = policy_model.to(dev) if not multi else policy_model
-    value_model = value_model.to(dev)if not multi else value_model
+    value_model = value_model.to(dev) if not multi else value_model
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.001)
     optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.001)
     print("Loop starting from", start_from)
@@ -251,13 +274,14 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
         picked = []
         reward_array = []
         pbar.set_description("Avg. reward {} Avg. episode {} Loss {}".format(np.array(episode_reward).mean(),
-                                                                     np.array(episode_len_array).mean(), policy_loss))
+                                                                             np.array(episode_len_array).mean(),
+                                                                             policy_loss))
         episode_len = 0
         # # # # print("starting episode loop")
         while not done:
             episode_len += 1
             # # # # print("Before", prev_obs.shape)
-            prev_obs = torch.Tensor(prev_obs).to(dev) #if not multi else torch.Tensor(prev_obs).to("cuda:1")
+            prev_obs = torch.Tensor(prev_obs).to(dev)  # if not multi else torch.Tensor(prev_obs).to("cuda:1")
             # # # # print("Before1", prev_obs.shape)
             prev_obs = prev_obs.unsqueeze(0)
             # # # # print("Here", prev_obs.shape)
@@ -291,8 +315,12 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
             # # # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             policy_loss = update_params(samples=samples, value_net=value_model, policy_net=policy_model,
-                          policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99, device=dev, multi=multi)
+                                        policy_optimizer=optimizer_policy, value_optimizer=optimizer_value, gamma=0.99,
+                                        device=dev, multi=multi)
             policy_loss = policy_loss.detach().cpu().numpy()
+        if e % lr_frequency == 0 and e != 0:
+            update_learning_rate(optimizer_policy, 5)
+            update_learning_rate(optimizer_value, 5)
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(save_path + "{}_AC_Entropy_V2_policy_model_{}.pt".format(project_name, save_num - 1)):
@@ -349,10 +377,11 @@ if __name__ == "__main__":
     # dev = "cpu"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV4(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,report_max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name],window_size=500)
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
+                   report_max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], window_size=500)
     obs = env.reset()
 
-    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from*31)
-    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True, start_from=start_from)
-
+    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
+    policy, value = train_actor_critic(total_time_step=7500, sample_size=16, project_name=project_name, multi=True,
+                                       start_from=start_from)
