@@ -1,5 +1,6 @@
 import random
 import pickle
+import argparse
 import psutil
 import torch
 import os
@@ -7,56 +8,65 @@ from torch import nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 import torch.optim as optim
+
+from AC_EntropyV2 import TwoDConv, TwoDConvReport, update_learning_rate
 from Buffer import get_replay_buffer, get_priority_replay_buffer
 import numpy as np
-from Environment import LTREnvV2
+from Environment import LTREnvV2, LTREnvV4
 from matplotlib import pyplot as plt
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from pathlib import Path
 from stable_baselines3.common.buffers import ReplayBuffer
 from Buffer import CustomBuffer
 
-
 class DoubleDQN(nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, multi=False):
         super(DoubleDQN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(32)
+        self.source_conv_net = TwoDConv(env=env, in_channel=env.action_space.n).to("cuda:0") if multi else TwoDConv(
+            env=env, in_channel=env.action_space.n)
+        self.report_conv_net = TwoDConvReport(env=env, in_channel=1).to("cuda:1") if multi else TwoDConvReport(env=env,
+                                                                                                               in_channel=1)
         self.lstm_hidden_space = 256
+        self.report_len = 512
+        self.multi = multi
 
-        def conv2d_size_out(size, kernel_size=5, stride=2):
-            return (size - (kernel_size - 1) - 1) // stride + 1
+        linear_input_size = self.source_conv_net.linear_input_size + self.report_conv_net.linear_input_size
+        # # print("lin", linear_input_size, self.source_conv_net.linear_input_size, self.report_conv_net.linear_input_size )
+        self.action_space = env.action_space.n
+        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to(
+            "cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space,
+                                            batch_first=True)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, 1).to(
+            "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, 1)
 
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[1])))
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(env.observation_space.shape[0])))
-        linear_input_size = convw * convh * 32 + env.action_space.n
-        # self.lin_layer1 = nn.Linear(linear_input_size, 128)
-        self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space, env.action_space.n)
-
-    def forward(self, x, actions, hidden=None):
-        x = x.unsqueeze(1) if x.dim() == 3 else x
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = x.view(x.size(0), -1)
-        # x = F.relu(self.lin_layer1(x))
-        x = torch.concat([x.unsqueeze(1), actions.unsqueeze(1) if actions.dim() != 3 else actions], axis=2)
-        x, (new_h, new_c) = self.lstm(x, (hidden[0], hidden[1]))
-        # x = x.squeeze(0)
+    def forward(self, x, hidden=None):
+        # print("Here1")
+        x_source = self.source_conv_net(
+            x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(
+            x[:, :, self.report_len:, :])
+        x_report = self.report_conv_net(
+            x[:, 0, :self.report_len, :].unsqueeze(1).to("cuda:1")) if self.multi else self.report_conv_net(
+            x[:, 0, :self.report_len, :].unsqueeze(1))
+        # print("Here2")
+        # print("report shape", x_report.shape, "source shape", x_source.shape)
+        x = torch.concat([x_report, x_source.to("cuda:1")], axis=2) if self.multi else torch.concat(
+            [x_report, x_source], axis=2)
+        # print("Here4")
+        x, (new_h, new_c) = self.lstm(x, (hidden[0].to("cuda:1"), hidden[1].to("cuda:1"))) if self.multi else self.lstm(
+            x, (hidden[0], hidden[1]))
+        # print("Here5")
+        x = x.reshape(x.size(0), -1)
+        # print("Here6")
         x = self.lin_layer2(x)
+        # print("Here7")
         return x, [new_h, new_c]
 
 
 def run_one_iter(q_net, target_net, state, action, reward, next_state, done, optim, gamma, hiddens=None, picked=None):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    output, _ = q_net(state, actions=picked, hidden=hiddens)
+    output, _ = q_net(state, hidden=hiddens)
     current_Q_values = output.squeeze(1).gather(1, action)
-    next_Q_values, _ = target_net(next_state.type(torch.float), actions=picked, hidden=hiddens)
+    next_Q_values, _ = target_net(next_state.type(torch.float), hidden=hiddens)
     next_Q_values = next_Q_values.detach().squeeze(1)
     next_Q_values[~picked.squeeze(1).type(torch.bool)] = torch.min(next_Q_values) - 3
     next_max_Q_value = torch.max(next_Q_values, dim=1).values
@@ -99,10 +109,10 @@ def to_one_hot(array, max_size):
 
 
 def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=300,
-                      tau=0.03, file_path="", save_frequency=30):
+                      tau=0.03, file_path="", save_frequency=30, multi=False, start_from=0,lr_frequency=200):
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    q_network = DoubleDQN(env=env).to(dev)
-    target_q_network = DoubleDQN(env=env).to(dev)
+    q_network = DoubleDQN(env=env,multi=multi).to(dev)
+    target_q_network = DoubleDQN(env=env, multi=multi).to(dev)
     if prev_model_path is not None:
         state_dict = torch.load(prev_model_path)
         q_network.load_state_dict(state_dict=state_dict)
@@ -113,7 +123,9 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     episode_len_array = []
     episode_reward = []
-    pbar = tqdm(range(total_time_step))
+    pbar = trange(start_from, total_time_step)
+    dqn_loss = None
+
     for e in pbar:
         done = False
         prev_obs = env.reset()
@@ -121,21 +133,19 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                   torch.zeros([1, 1, q_network.lstm_hidden_space]).to(dev)]
         picked = []
         reward_array = []
-        # pbar.set_description("Avg. reward {} Avg. episode {} Mem: {}".format(np.array(episode_reward).mean(),
-        #                                                                      np.array(episode_len_array).mean(),
-        #                                                                      psutil.Process(
-        #                                                                          os.getpid()).memory_info().rss / 1024 ** 2))
-        pbar.set_description("Avg. reward {} Avg. episode {}".format(np.array(episode_reward).mean(),
-                                                                             np.array(episode_len_array).mean()))
+        pbar.set_description("Avg. reward {} Avg. episode {} Loss {}".format(np.array(episode_reward).mean(),
+                                                                             np.array(episode_len_array).mean(),
+                                                                             dqn_loss))
         episode_len = 0
         while not done:
             episode_len += 1
             prev_obs = torch.Tensor(prev_obs).to(dev)
             prev_obs = prev_obs.unsqueeze(0)
+            temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
+                dev).type(torch.float)
             with torch.no_grad():
                 action, temp_hidden = q_network(prev_obs,
-                                           actions=torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
-                                               dev).type(torch.float), hidden=hidden)
+                                           actions=temp_action, hidden=hidden)
             if np.random.rand() <= np.max([0.05, 1.0 / np.log(e)]):
                 available = [item for item in range(env.action_space.n) if item not in picked]
                 action = random.sample(available, 1)[0]
@@ -177,33 +187,65 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
 
+        if e % lr_frequency == 0 and e != 0:
+            update_learning_rate(optimizer, 5)
         if e % save_frequency == 0:
             save_num = e / save_frequency
-            if os.path.isfile(file_path + "dqn_model_{}.pt".format(save_num - 1)):
-               os.remove(file_path + "dqn_model_{}.pt".format(save_num - 1))
-            if os.path.isfile(file_path + "DQN_Episode_Reward.pickle"):
-               os.remove(file_path + "DQN_Episode_Reward.pickle")
-            if os.path.isfile(file_path + "DQN_Episode_Length.pickle"):
-               os.remove(file_path + "DQN_Episode_Length.pickle")
-            torch.save(q_network.state_dict(), file_path + "dqn_model_{}.pt".format(save_num))
-            with open(file_path + "DQN_Episode_Reward.pickle", "wb") as f:
+            if os.path.isfile(save_path + "{}_DQN_policy_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(save_path + "{}_DQN_policy_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(save_path + "{}_DQN_value_model_{}.pt".format(project_name, save_num - 1)):
+                os.remove(save_path + "{}_DQN_value_model_{}.pt".format(project_name, save_num - 1))
+            if os.path.isfile(save_path + "{}_DQN_Episode_Reward.pickle".format(project_name)):
+                os.remove(save_path + "{}_DQN_Episode_Reward.pickle".format(project_name))
+            if os.path.isfile(save_path + "{}_DQN_Episode_Length.pickle".format(project_name)):
+                os.remove(save_path + "{}_DQN_Episode_Length.pickle".format(project_name))
+
+            torch.save(q_network.state_dict(),
+                       save_path + "{}_DQN_policy_model_{}.pt".format(project_name, save_num))
+
+            with open(save_path + "{}_DQN_Episode_Reward.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_reward, f)
 
-            with open(file_path + "DQN_Episode_Length.pickle", "wb") as f:
+            with open(save_path + "{}_DQN_Episode_Length.pickle".format(project_name), "wb") as f:
                 pickle.dump(episode_len_array, f)
+            buffer.save_others()
     return q_network
 
 
 if __name__ == "__main__":
-    file_path = "/project/def-m2nagapp/partha9/LTR/"
-    cache_path = "/scratch/partha9/.buffer_cache_dqn"
-    prev_model_path = None#"/project/def-m2nagapp/partha9/LTR/AspectJ_dqn_model_125.0.pt"
+    os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
+    parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_dqn", help='Cache Path')
+    parser.add_argument('--prev_model_path', default=None, help='Trained model Path')
+    parser.add_argument('--train_data_path', help='Training Data Path')
+    parser.add_argument('--save_path', help='Save Path')
+    parser.add_argument('--start_from', default=0, help='Start from')
+    parser.add_argument('--project_name', help='Project Name')
+    options = parser.parse_args()
+    file_path = options.file_path
+    cache_path = options.cache_path
+    prev_model_path = options.prev_model_path
+    train_data_path = options.train_data_path
+    project_name = options.project_name
+    save_path = options.save_path
+    start_from = int(options.start_from)
+    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    # file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
+    # cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
+    # prev_policy_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
+    # prev_value_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_value_model_124.0.pt"
+    # train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
+    # project_name = "AspectJ"
+    # save_path = ""
+    # dev = "cpu"
     Path(file_path).mkdir(parents=True, exist_ok=True)
-    env = LTREnvV2(data_path=file_path + "Data/TrainData/Bench_BLDS_JDT_Dataset.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=100, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, project_list=['JDT'])
+    env = LTREnvV4(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
+                   report_max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], window_size=500)
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    buffer = CustomBuffer(6000, cache_path=cache_path)
+    buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
     model = train_dqn_epsilon(buffer=buffer, sample_size=128, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
