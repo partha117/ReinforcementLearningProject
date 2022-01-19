@@ -55,6 +55,7 @@ class LTREnv(gym.Env):
         self.suppoerted_len = None
         self.match_id = None
         self.__get_ids()
+        self.counter = 0
 
     @staticmethod
     def decode(text):
@@ -107,7 +108,8 @@ class LTREnv(gym.Env):
 
     def reset(self):
         self.previous_obs = None
-        self.current_id = random.sample(self.sampled_id, 1)[0]
+        self.current_id = random.sample(self.sampled_id, 1)[0] if self.counter >= len(self.sampled_id) else self.sampled_id[self.counter]
+        self.counter += 1
         self.__get_filtered_df()
         self.picked = []
         self.remained = self.filtered_df['cid'].tolist()
