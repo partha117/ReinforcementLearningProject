@@ -7,7 +7,6 @@ from tqdm import tqdm, trange
 import torch
 from torch import nn
 from Buffer import CustomBuffer
-from DQN import train_dqn_epsilon, to_one_hot
 from Environment import LTREnvV4
 import torch.nn.functional as F
 import numpy as np
@@ -209,6 +208,7 @@ def estimate_advantages(rewards, done, states, next_states, gamma, device, value
 
 
 def update_params(samples, value_net, policy_net, policy_optimizer, value_optimizer, gamma, device, multi=False):
+    from DQN import to_one_hot
     state, action, reward, next_state, done, info = samples
     next_state = next_state.squeeze(1)
     # # # # print("update params", state.shape,next_state.shape)
@@ -244,6 +244,7 @@ def update_learning_rate(optimizer, factor):
 
 
 def train_actor_critic(total_time_step, sample_size, project_name, start_from, save_frequency=30, multi=False, lr_frequency=200):
+    from DQN import to_one_hot
     policy_model = PolicyModel(env=env, multi=multi)
     value_model = ValueModel(env=env, multi=multi)
     if prev_policy_model_path is not None:
