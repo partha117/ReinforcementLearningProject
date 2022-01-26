@@ -167,7 +167,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                        [info])
             prev_obs = obs
             # print("Episode length: {}".format(episode_len))
-        if len(buffer) > 200:
+        if len(buffer) > 50:
             samples = buffer.sample(sample_size)
             state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
             print("state",state.shape)
