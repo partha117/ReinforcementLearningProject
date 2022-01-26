@@ -246,5 +246,5 @@ if __name__ == "__main__":
     obs = env.reset()
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=128, env=env, total_time_step=6000, update_frequency=300,
+    model = train_dqn_epsilon(buffer=buffer, sample_size=32, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
