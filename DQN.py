@@ -36,8 +36,8 @@ class DoubleDQN(nn.Module):
         self.lstm = nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space, batch_first=True).to(
             "cuda:1") if multi else nn.LSTM(input_size=linear_input_size, hidden_size=self.lstm_hidden_space,
                                             batch_first=True)
-        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, 1).to(
-            "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, 1)
+        self.lin_layer2 = nn.Linear(self.lstm_hidden_space * 8, env.action_space.n).to(
+            "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
 
     def forward(self, x, hidden=None):
         # print("Here1")
@@ -151,6 +151,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                 picked.append(action)
             else:
                 action = action.cpu()
+                print(action, action.shape)
                 action[0][
                     ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
                     action) - 3
