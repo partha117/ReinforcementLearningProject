@@ -158,6 +158,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                 action = int(max_action.detach().numpy())
                 picked.append(action)
             obs, reward, done, info = env.step(action)
+            print("obs",obs.shape)
             reward_array.append(reward)
             info['hidden'] = [item.detach().cpu().numpy() for item in hidden]
             info['picked'] = picked
@@ -169,6 +170,8 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
         if len(buffer) > 200:
             samples = buffer.sample(sample_size)
             state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
+            print("state",state.shape)
+            print("nstate", next_state.shape)
             batch_hidden = torch.tensor(np.array(
                 [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
                  np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(dev)
