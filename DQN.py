@@ -144,8 +144,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             temp_action = torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).to(
                 dev).type(torch.float)
             with torch.no_grad():
-                action, temp_hidden = q_network(prev_obs,
-                                           actions=temp_action, hidden=hidden)
+                action, temp_hidden = q_network(prev_obs, hidden=hidden)
             if np.random.rand() <= np.max([0.05, 1.0 / np.log(e)]):
                 available = [item for item in range(env.action_space.n) if item not in picked]
                 action = random.sample(available, 1)[0]
