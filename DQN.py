@@ -151,8 +151,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                 picked.append(action)
             else:
                 action = action.cpu()
-                print(action, action.shape)
-                action[0][
+                action[
                     ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
                     action) - 3
                 max_action = torch.argmax(action)
