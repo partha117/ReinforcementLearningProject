@@ -243,5 +243,5 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], window_size=500)
     obs = env.reset()
     buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=32, env=env, total_time_step=6000, update_frequency=300,
+    model = train_dqn_epsilon(buffer=buffer, sample_size=16, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
