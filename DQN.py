@@ -173,7 +173,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
             batch_picked = torch.tensor(np.array(
                 [to_one_hot(item['picked'], max_size=env.action_space.n) for item in info])).to(dev).type(
                 torch.float)
-            run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
+            dqn_loss = run_one_iter(q_net=q_network, target_net=target_q_network, state=state.to(dev),
                                 action=action.to(dev), reward=reward.to(dev),
                                 next_state=next_state.to(dev), done=batch_done.to(dev), optim=optimizer, gamma=0.9,
                                 hiddens=batch_hidden, picked=batch_picked)
