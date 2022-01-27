@@ -40,7 +40,6 @@ class DoubleDQN(nn.Module):
             "cuda:1") if multi else nn.Linear(self.lstm_hidden_space * 8, env.action_space.n)
 
     def forward(self, x, hidden=None):
-        # print("Here1")
         x_source = self.source_conv_net(
             x[:, :, self.report_len:, :].to("cuda:0")) if self.multi else self.source_conv_net(
             x[:, :, self.report_len:, :])
@@ -63,7 +62,6 @@ class DoubleDQN(nn.Module):
 
 
 def run_one_iter(q_net, target_net, state, action, reward, next_state, done, optim, gamma, hiddens=None, picked=None):
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     output, _ = q_net(state, hidden=hiddens)
     current_Q_values = output.squeeze(1).gather(1, action)
     next_Q_values, _ = target_net(next_state.type(torch.float), hidden=hiddens)
@@ -82,7 +80,6 @@ def run_one_iter(q_net, target_net, state, action, reward, next_state, done, opt
 
 
 def train_dqn(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=500, tau=0.3):
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     q_network = DoubleDQN(env=env).to(dev)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
     target_q_network = DoubleDQN(env=env).to(dev)
@@ -110,7 +107,6 @@ def to_one_hot(array, max_size):
 
 def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learning_rate=0.01, update_frequency=300,
                       tau=0.03, file_path="", save_frequency=30, multi=False, start_from=0,lr_frequency=200):
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     q_network = DoubleDQN(env=env,multi=multi).to(dev)
     target_q_network = DoubleDQN(env=env, multi=multi).to(dev)
     if prev_model_path is not None:
@@ -167,11 +163,10 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
                        [info])
             prev_obs = obs
             # print("Episode length: {}".format(episode_len))
-        if len(buffer) > 50:
+        if len(buffer) > 400:
             samples = buffer.sample(sample_size)
             state, action, reward, next_state, batch_done, info = samples  # samples.observations, samples.actions, samples.rewards, samples.next_observations, samples.dones, samples.info
-            print("state",state.shape)
-            print("nstate", next_state.shape)
+            state = state.squeeze(1)
             batch_hidden = torch.tensor(np.array(
                 [np.stack([np.array(item['hidden'][0]) for item in info], axis=2)[0],
                  np.stack([np.array(item['hidden'][1]) for item in info], axis=2)[0]])).to(dev)
@@ -215,39 +210,38 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
 
 
 if __name__ == "__main__":
-    os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
-    parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_dqn", help='Cache Path')
-    parser.add_argument('--prev_model_path', default=None, help='Trained model Path')
-    parser.add_argument('--train_data_path', help='Training Data Path')
-    parser.add_argument('--save_path', help='Save Path')
-    parser.add_argument('--start_from', default=0, help='Start from')
-    parser.add_argument('--project_name', help='Project Name')
-    options = parser.parse_args()
-    file_path = options.file_path
-    cache_path = options.cache_path
-    prev_model_path = options.prev_model_path
-    train_data_path = options.train_data_path
-    project_name = options.project_name
-    save_path = options.save_path
-    start_from = int(options.start_from)
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    # file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
-    # cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
-    # prev_policy_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
-    # prev_value_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_value_model_124.0.pt"
-    # train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
-    # project_name = "AspectJ"
-    # save_path = ""
-    # dev = "cpu"
+    # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
+    # parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_dqn", help='Cache Path')
+    # parser.add_argument('--prev_model_path', default=None, help='Trained model Path')
+    # parser.add_argument('--train_data_path', help='Training Data Path')
+    # parser.add_argument('--save_path', help='Save Path')
+    # parser.add_argument('--start_from', default=0, help='Start from')
+    # parser.add_argument('--project_name', help='Project Name')
+    # options = parser.parse_args()
+    # file_path = options.file_path
+    # cache_path = options.cache_path
+    # prev_model_path = options.prev_model_path
+    # train_data_path = options.train_data_path
+    # project_name = options.project_name
+    # save_path = options.save_path
+    # start_from = int(options.start_from)
+    # dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
+    cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
+    prev_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
+    train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
+    project_name = "AspectJ"
+    save_path = ""
+    start_from = 2
+    dev = "cpu"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV4(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
                    report_max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], window_size=500)
     obs = env.reset()
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=32, env=env, total_time_step=6000, update_frequency=300,
+    model = train_dqn_epsilon(buffer=buffer, sample_size=64, env=env, total_time_step=6000, update_frequency=300,
                               tau=0.01, file_path=file_path)
