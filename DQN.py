@@ -210,32 +210,32 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
 
 
 if __name__ == "__main__":
-    # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
-    # parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_dqn", help='Cache Path')
-    # parser.add_argument('--prev_model_path', default=None, help='Trained model Path')
-    # parser.add_argument('--train_data_path', help='Training Data Path')
-    # parser.add_argument('--save_path', help='Save Path')
-    # parser.add_argument('--start_from', default=0, help='Start from')
-    # parser.add_argument('--project_name', help='Project Name')
-    # options = parser.parse_args()
-    # file_path = options.file_path
-    # cache_path = options.cache_path
-    # prev_model_path = options.prev_model_path
-    # train_data_path = options.train_data_path
-    # project_name = options.project_name
-    # save_path = options.save_path
-    # start_from = int(options.start_from)
-    # dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
-    cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
-    prev_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
-    train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
-    project_name = "AspectJ"
-    save_path = ""
-    start_from = 2
-    dev = "cpu"
+    os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file_path', default="/project/def-m2nagapp/partha9/LTR/", help='File Path')
+    parser.add_argument('--cache_path', default="/scratch/partha9/.buffer_cache_dqn", help='Cache Path')
+    parser.add_argument('--prev_model_path', default=None, help='Trained model Path')
+    parser.add_argument('--train_data_path', help='Training Data Path')
+    parser.add_argument('--save_path', help='Save Path')
+    parser.add_argument('--start_from', default=0, help='Start from')
+    parser.add_argument('--project_name', help='Project Name')
+    options = parser.parse_args()
+    file_path = options.file_path
+    cache_path = options.cache_path
+    prev_model_path = options.prev_model_path
+    train_data_path = options.train_data_path
+    project_name = options.project_name
+    save_path = options.save_path
+    start_from = int(options.start_from)
+    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
+    # file_path = ""  # "/project/def-m2nagapp/partha9/LTR/"
+    # cache_path = ".cache"  # "/scratch/partha9/.buffer_cache_ac"
+    # prev_model_path = None  # "/project/def-m2nagapp/partha9/LTR/AspectJ_New_AC_policy_model_124.0.pt"
+    # train_data_path = "Data/TrainData/Bench_BLDS_Aspectj_Dataset.csv"
+    # project_name = "AspectJ"
+    # save_path = ""
+    # start_from = 0
+    # dev = "cpu"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV4(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
