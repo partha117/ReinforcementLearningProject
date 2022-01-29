@@ -185,7 +185,7 @@ def train_dqn_epsilon(buffer, env, total_time_step=10000, sample_size=30, learni
         episode_len_array.append(episode_len)
 
         if e % lr_frequency == 0 and e != 0:
-            update_learning_rate(optimizer, 5)
+            update_learning_rate(optimizer, 10)
         if e % save_frequency == 0:
             save_num = e / save_frequency
             if os.path.isfile(save_path + "{}_DQN_policy_model_{}.pt".format(project_name, save_num - 1)):
@@ -243,5 +243,5 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], window_size=500)
     obs = env.reset()
     buffer = CustomBuffer(6000, cache_path=cache_path, delete=(start_from == 0), start_from=start_from * 31)
-    model = train_dqn_epsilon(buffer=buffer, sample_size=16, env=env, total_time_step=6000, update_frequency=300,
+    model = train_dqn_epsilon(buffer=buffer, sample_size=16, env=env, total_time_step=6000, update_frequency=300,learning_rate=0.001,
                               tau=0.01, file_path=file_path)
