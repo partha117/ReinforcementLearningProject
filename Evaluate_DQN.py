@@ -19,6 +19,7 @@ from tqdm import tqdm
 from pathlib import Path
 from stable_baselines3.common.buffers import ReplayBuffer
 from Buffer import CustomBuffer
+from Evaluate_ACV2 import average_precision
 from Evaluate_Random import calculate_top_k
 
 if __name__ == "__main__":
@@ -50,6 +51,7 @@ if __name__ == "__main__":
     model = model.to(dev)
     all_rr = []
     counts = None
+    precision_array = []
     for _ in tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
         all_rr.append(-100)
         done = False
@@ -76,15 +78,23 @@ if __name__ == "__main__":
             counts = calculate_top_k(source=env.picked, target=env.match_id, counts=counts)
         env.picked.append(action)
         counts = calculate_top_k(source=env.picked, target=env.match_id, counts=counts)
+        ranked_array = np.zeros(len(env.picked))
+        ranked_array[np.where(np.isin(np.array(env.picked), np.array(env.match_id)))] = 1
+        print(ranked_array)
+        print(env.picked)
+        print(env.match_id)
+        precision_array.append(average_precision(ranked_array))
+        print(precision_array[-1])
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     mean_rr = all_rr.mean()
     actual_rank = 1.0/all_rr
+    map_value = np.array(precision_array).mean()
 
 
 
     Path(result_path).mkdir(exist_ok=True,parents=True)
-    json.dump({"mrr": mean_rr}, open(result_path + "_mrr.json", "w"))
+    json.dump({"mrr": mean_rr,"map": map_value}, open(result_path + "_mrr.json", "w"))
     np.save(result_path + "_ranks.npy", actual_rank)
     plt.figure(figsize=(500, 500))
     plt.hist(1.0/all_rr, bins=30)
