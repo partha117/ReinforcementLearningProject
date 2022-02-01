@@ -108,7 +108,8 @@ class LTREnv(gym.Env):
 
     def reset(self):
         self.previous_obs = None
-        self.current_id = random.sample(self.sampled_id, 1)[0] if self.counter >= len(self.sampled_id) else self.sampled_id[self.counter]
+        #self.current_id = random.sample(self.sampled_id, 1)[0] if self.counter >= len(self.sampled_id) else self.sampled_id[self.counter]
+        self.current_id = self.sampled_id[self.counter % len(self.sampled_id)]
         self.counter += 1
         self.__get_filtered_df()
         self.picked = []
