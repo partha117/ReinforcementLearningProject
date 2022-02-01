@@ -13,7 +13,7 @@ import torchvision.transforms as T
 import torch.optim as optim
 from Buffer import get_replay_buffer, get_priority_replay_buffer
 import numpy as np
-from Environment import LTREnvV2
+from Environment import LTREnvV4
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
@@ -38,12 +38,14 @@ if __name__ == "__main__":
     model_path = options.model_path
     result_path = options.result_path
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    env = LTREnvV2(data_path=file_path + "Data/TestData/AspectJ_test.csv", model_path="microsoft/codebert-base",
-                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, max_len=512,
-                   use_gpu=False, caching=True, file_path=file_path, test_env=True)
+    env = LTREnvV4(data_path=file_path + test_data_path, model_path="microsoft/codebert-base",
+                   tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
+                   report_max_len=512,
+                   use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], test_env=True,
+                   window_size=500)
 
     model = DoubleDQN(env=env)
-    state_dict = torch.load("Models/DQN/dqn_model_106.0.pt")
+    state_dict = torch.load(file_path + model_path, map_location="cuda:0")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
     all_rr = []
@@ -61,9 +63,9 @@ if __name__ == "__main__":
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
             hidden = [item.to(dev).type(torch.float) for item in hidden]
             with torch.no_grad():
-                action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
+                action, hidden = model(x=prev_obs, hidden=hidden)
             action = action.cpu()
-            action[0][
+            action[
                 ~torch.from_numpy(to_one_hot(picked, max_size=env.action_space.n)).type(torch.bool)] = torch.min(
                 action) - 3
             action = int(torch.argmax(action).cpu().numpy())
