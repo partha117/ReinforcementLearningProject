@@ -425,13 +425,91 @@ class LTREnvV4(LTREnv):
         # print("Current_Id", self.current_id, type(self.all_embedding))
         # print(self.all_embedding.shape)
         return self.all_embedding.squeeze(1)
+class LTREnvV5(LTREnv):
+    def __init__(self, data_path, model_path, tokenizer_path, action_space_dim, report_count, report_max_len=512,
+                 code_max_len=4096, use_gpu=True,
+                 caching=False, file_path="", project_list=None, test_env=False, window_size=480):
+        super(LTREnvV5, self).__init__(data_path, model_path, tokenizer_path, action_space_dim, report_count,
+                                       max_len=report_max_len, use_gpu=use_gpu, file_path=file_path,
+                                       project_list=project_list,
+                                       test_env=test_env)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(31, 768), dtype=np.float32)
+        self.window_size = window_size
+        self.embedding_size = 512
+        self.report_max_len = report_max_len
+        self.code_max_len = code_max_len
+        self.all_embedding = []
+        self.caching = caching
 
+    def reset(self):
+        self.all_embedding = []
+        return super(LTREnvV5, self).reset()
+
+    def get_window(self, **kwargs):
+        for window_start in range(0, math.ceil(self.code_max_len / self.window_size) * self.window_size,
+                                  self.window_size):
+            temp = dict()
+            for key, value in kwargs.items():
+                temp[key] = value[:, window_start: window_start + self.embedding_size].to(self.dev)
+            # print(window_start, window_start + self.embedding_size)
+            yield temp
+
+    def _LTREnv__get_observation(self):
+        self.t += 1
+
+        if len(self.all_embedding) == 0:
+            if not self.caching or not Path(
+                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
+                for row in self.filtered_df.iterrows():
+                    report_data, code_data = row[1].report, row[1].file_content
+                    report_token, code_token = self.tokenizer.batch_encode_plus([report_data],
+                                                                                max_length=self.report_max_len,
+                                                                                pad_to_multiple_of=self.report_max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt'), \
+                                               self.tokenizer.batch_encode_plus([self.decode(code_data)],
+                                                                                max_length=self.code_max_len,
+                                                                                pad_to_multiple_of=self.code_max_len,
+                                                                                truncation=True,
+                                                                                padding=True,
+                                                                                return_tensors='pt')
+                    with torch.no_grad():
+                        output_part = []
+                        for part in self.get_window(**code_token):
+                            output_part.append(self.model(**part).pooler_output)
+                        code_embedding = torch.vstack(output_part)
+                        report_embedding = self.model(**report_token.to(self.dev)).pooler_output
+                    final_rep = np.concatenate([report_embedding, torch.unsqueeze(code_embedding.mean(dim=0),0)], axis=1)
+                    self.all_embedding.append(final_rep)
+                self.all_embedding = np.stack(self.all_embedding) # 31,1, 1536
+                if self.caching:
+                    Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
+                    np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id),
+                            self.all_embedding)
+            else:
+                self.all_embedding = np.load(
+                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id))
+        if len(self.picked) > 0:
+            try:
+                action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
+                self.all_embedding[action_index, :, self.report_max_len:]= np.full_like(
+                    self.all_embedding[action_index, :, self.report_max_len:], 0,
+                    dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
+            except Exception as ex:
+                print(ex, action_index, self.current_id)
+                raise ex
+        self.previous_obs = self.all_embedding
+        # print("Current_Id", self.current_id, type(self.all_embedding))
+        # print(self.all_embedding.shape)
+        return self.all_embedding.squeeze(1)
 
 if __name__ == "__main__":
     from stable_baselines3 import DQN
     from stable_baselines3.common.buffers import BaseBuffer, ReplayBuffer, ReplayBufferSamples
 
-    env = LTREnvV4(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
+    env = LTREnvV5(data_path="Data/TrainData/Bench_BLDS_Dataset.csv", model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=50, code_max_len=4096,
                    use_gpu=False, caching=True, window_size=500)
     obs = env.reset()
