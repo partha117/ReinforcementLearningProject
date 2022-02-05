@@ -460,7 +460,7 @@ class LTREnvV5(LTREnv):
 
         if len(self.all_embedding) == 0:
             if not self.caching or not Path(
-                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id)).is_file():
+                    self.file_path + ".caching/{}/{}_all_embedding.npy".format(self.project_list[0], self.current_id)).is_file():
                 for row in self.filtered_df.iterrows():
                     report_data, code_data = row[1].report, row[1].file_content
                     report_token, code_token = self.tokenizer.batch_encode_plus([report_data],
@@ -485,16 +485,16 @@ class LTREnvV5(LTREnv):
                     self.all_embedding.append(final_rep)
                 self.all_embedding = np.stack(self.all_embedding) # 31,1, 1536
                 if self.caching:
-                    Path(self.file_path + ".caching/").mkdir(parents=True, exist_ok=True)
-                    np.save(self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id),
+                    Path(self.file_path + ".caching/{}/".format(self.project_list[0])).mkdir(parents=True, exist_ok=True)
+                    np.save(self.file_path + ".caching/{}/{}_all_embedding.npy".format(self.project_list[0], self.current_id),
                             self.all_embedding)
             else:
                 self.all_embedding = np.load(
-                    self.file_path + ".caching/{}_all_embedding.npy".format(self.current_id))
+                    self.file_path + ".caching/{}/{}_all_embedding.npy".format(self.project_list[0], self.current_id))
         if len(self.picked) > 0:
             try:
                 action_index = self.filtered_df['cid'].tolist().index(self.picked[-1])
-                self.all_embedding[action_index, :, self.report_max_len:]= np.full_like(
+                self.all_embedding[action_index, :, self.report_max_len:] = np.full_like(
                     self.all_embedding[action_index, :, self.report_max_len:], 0,
                     dtype=np.double)  # np.zeros_like(self.all_embedding[action_index])
             except Exception as ex:
