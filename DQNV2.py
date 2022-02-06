@@ -37,7 +37,7 @@ class AttLayer(nn.Module):
          # print(code_ll.shape)
         multiplication = torch.bmm(torch.unsqueeze(report_ll, 1), code_ll.swapaxes(1, 2))
          # print(multiplication.shape)
-        att_value = softmax(multiplication)
+        att_value = softmax(multiplication, dim=2)
         att_value = att_value.squeeze(1).unsqueeze(2)
         r_att_value = self.report_attention_layer(report)
         return att_value * source, r_att_value * report
