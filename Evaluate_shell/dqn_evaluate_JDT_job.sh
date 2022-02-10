@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1               # number of MPI processes
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=12G      # memory; default unit is megabytes
-#SBATCH --time=80:20:00           # time (DD-HH:MM)
+#SBATCH --time=12:20:00           # time (DD-HH:MM)
 #SBATCH --gres=gpu:v100l:1
 #SBATCH --output=%x-%j.out
 #SBATCH --mail-user=p9chakra@uwtaerloo.ca

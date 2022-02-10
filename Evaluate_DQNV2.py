@@ -52,7 +52,7 @@ if __name__ == "__main__":
     all_rr = []
     counts = None
     precision_array = []
-    for _ in tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
+    for _ in  tqdm(range(200)):#tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
         all_rr.append(-100)
         done = False
         picked = []
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         print(env.match_id)
         precision_array.append(average_precision(ranked_array))
         print(precision_array[-1])
-        json.dump({"mrr": all_rr[all_rr > 0].mean()}, open(result_path + "_mrr.json", "w"))
+        # json.dump({"mrr": all_rr[all_rr > 0].mean()}, open(result_path + "_mrr.json", "w"))
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     mean_rr = all_rr.mean()
