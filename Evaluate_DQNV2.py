@@ -82,6 +82,7 @@ if __name__ == "__main__":
         print(env.match_id)
         precision_array.append(average_precision(ranked_array))
         print(precision_array[-1])
+        json.dump({"mrr": all_rr[all_rr > 0].mean()}, open(result_path + "_mrr.json", "w"))
     all_rr = np.array(all_rr)
     all_rr = all_rr[all_rr > 0]
     mean_rr = all_rr.mean()
