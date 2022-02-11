@@ -52,7 +52,7 @@ if __name__ == "__main__":
     all_rr = []
     counts = None
     precision_array = []
-    for _ in  tqdm(range(200)):#tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
+    for _ in tqdm(range(env.suppoerted_len)): #env.suppoerted_len)):
         all_rr.append(-100)
         done = False
         picked = []
