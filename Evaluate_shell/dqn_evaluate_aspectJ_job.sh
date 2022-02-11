@@ -10,7 +10,7 @@
 #SBATCH --mail-type=ALL
 export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/Evaluate_DQNV2.py \
 --file_path /project/def-m2nagapp/partha9/LTR/ \
---model_path Models/DQN/AspectJ/AspectJ_DQN_policy_model.pt \
+--model_path Models/DQN/AspectJ/AspectJ_DQN_policy_model_169.0.pt \
 --result_path /project/def-m2nagapp/partha9/LTR/Results/DQN/AspectJ/ \
 --test_data_path Data/TestData/AspectJ_test.csv \
 --project_name AspectJ
