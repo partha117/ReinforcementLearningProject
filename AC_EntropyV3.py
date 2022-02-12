@@ -45,15 +45,16 @@ class ValueModel(nn.Module):
         self.limit = limit
         self.env = env
         self.attention = AttLayer(limit=self.limit)
-        self.linear1 = nn.Linear(in_features=self.limit * 2, out_features=self.limit)
-        self.linear2 = nn.Linear(in_features=self.limit, out_features=1)
+        self.linear1 = nn.Linear(in_features=self.limit * 2, out_features=256)
+        self.linear2 = nn.Linear(in_features=256 * env.action_space.n, out_features=1)
 
     def forward(self, x):
         source, report = self.attention(x)
         x = torch.concat([source, torch.stack([report for i in range(source.shape[1])]).swapaxes(0, 1)], axis=2)
         x = F.relu(self.linear1(x))
+        x = x.flatten(1)
         x = self.linear2(x)
-        return softmax(x.squeeze(2), dim=1)
+        return F.sigmoid(x)
 
 class PolicyModel(nn.Module):
     def __init__(self, env, limit=768):
@@ -92,8 +93,8 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     # # # print("probs", probs.shape)
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
-    # # # print(dist.log_prob(action).shape, advantages.shape)
-    policy_loss = -dist.log_prob(action) * advantages.detach() - lambda_val * dist.entropy()
+    # print(dist.log_prob(action).shape, advantages.shape)
+    policy_loss = -dist.log_prob(action).unsqueeze(1) * advantages.detach() - lambda_val * dist.entropy().unsqueeze(1)
     policy_loss = policy_loss.mean()
     optimizer_policy.zero_grad()
     policy_loss.backward()
@@ -111,11 +112,11 @@ def estimate_advantages(rewards, done, states, next_states, gamma, device, value
     rewards, masks, states, next_states = rewards.to(device), done.to(device).type(torch.float), states.to(device).type(
         torch.float), next_states.to(device).type(torch.float)
     # # # # print("d1", rewards.shape)
-    # # # # print("d1", masks.shape)
-    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states)[
-        0].detach() - value_model(states)[0]
+    # print("d1", masks.shape)
+    # print("v model", value_model(next_states).shape)
+    advantages = rewards + (1.0 - masks) * gamma * value_model(next_states).detach() - value_model(states)
     # # # # print("estimate advantage1")
-    # # # print("advantages", advantages.shape)
+    # print("advantages", advantages.shape)
     return advantages
 
 
