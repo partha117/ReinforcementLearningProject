@@ -152,8 +152,8 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
     if prev_value_model_path is not None:
         state_dict = torch.load(prev_value_model_path)
         value_model.load_state_dict(state_dict=state_dict)
-    policy_model = policy_model.to(dev) if not multi else policy_model
-    value_model = value_model.to(dev) if not multi else value_model
+    policy_model = policy_model.to(dev)
+    value_model = value_model.to(dev)
     optimizer_policy = torch.optim.Adam(policy_model.parameters(), lr=0.001)
     optimizer_value = torch.optim.Adam(value_model.parameters(), lr=0.001)
     print("Loop starting from", start_from)
@@ -200,7 +200,7 @@ def train_actor_critic(total_time_step, sample_size, project_name, start_from, s
             prev_obs = obs
         episode_reward.append(np.array(reward_array).sum())
         episode_len_array.append(episode_len)
-        if len(buffer) > 200:
+        if len(buffer) > 400:
             # # # # print("In buffer sampling")
             samples = buffer.sample(sample_size)
             policy_loss = update_params(samples=samples, value_net=value_model, policy_net=policy_model,
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     # project_name = "AspectJ"
     # save_path = ""
     # start_from = 0
-    # dev = "cpu"
+    # dev = "cuda:0"
     Path(file_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV5(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
