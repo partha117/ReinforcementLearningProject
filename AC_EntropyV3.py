@@ -88,7 +88,7 @@ def a2c_step(policy_net, optimizer_policy, optimizer_value, states, advantages, 
     """update policy"""
     # # # # print("getting policy")
     # # # # print(states.shape)
-    probs, _ = policy_net(states, actions=batch_picked)
+    probs = policy_net(states, actions=batch_picked)
     # # # print("probs", probs.shape)
     dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
