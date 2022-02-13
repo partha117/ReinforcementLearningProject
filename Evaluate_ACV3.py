@@ -76,7 +76,6 @@ if __name__ == "__main__":
             prev_actions = to_one_hot(picked, max_size=env.action_space.n)
             prev_actions = torch.from_numpy(prev_actions).to(dev).type(torch.float)
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
-            hidden = [item.to(dev).type(torch.float) for item in hidden]
             with torch.no_grad():
                 action = model(x=prev_obs, actions=prev_actions)
             action = torch.distributions.Categorical(action).sample()
