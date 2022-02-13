@@ -14,7 +14,7 @@ import torchvision.transforms as T
 import torch.optim as optim
 from Buffer import get_replay_buffer, get_priority_replay_buffer
 import numpy as np
-from Environment import LTREnvV4
+from Environment import LTREnvV4, LTREnvV5
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     result_path = options.result_path
     dev = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using {}".format(dev))
-    env = LTREnvV4(data_path=file_path + test_data_path, model_path="microsoft/codebert-base",
+    env = LTREnvV5(data_path=file_path + test_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,report_max_len=512,
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], test_env=True, window_size=500)
 
@@ -71,8 +71,6 @@ if __name__ == "__main__":
         all_rr.append(-100)
         done = False
         picked = []
-        hidden = [torch.zeros([1, 1, model.lstm_hidden_space]).to(dev),
-                  torch.zeros([1, 1, model.lstm_hidden_space]).to(dev)]
         prev_obs = env.reset()
         while not done:
             prev_actions = to_one_hot(picked, max_size=env.action_space.n)
@@ -80,7 +78,7 @@ if __name__ == "__main__":
             prev_obs = torch.from_numpy(np.expand_dims(prev_obs, axis=0)).float().to(dev)
             hidden = [item.to(dev).type(torch.float) for item in hidden]
             with torch.no_grad():
-                action, hidden = model(x=prev_obs, actions=prev_actions, hidden=hidden)
+                action = model(x=prev_obs, actions=prev_actions)
             action = torch.distributions.Categorical(action).sample()
             action = int(action[0].detach().cpu().numpy())
             prev_obs, reward, done, info, rr = env.step(action, return_rr=True)
