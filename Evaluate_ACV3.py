@@ -6,7 +6,7 @@ import argparse
 import torch
 from AC import PolicyModel, to_one_hot
 from Evaluate_Random import calculate_top_k
-from AC_EntropyV2 import PolicyModel as NewPolicyModel
+from AC_EntropyV3 import PolicyModel as NewPolicyModel
 import os
 from torch import nn
 import torch.nn.functional as F
