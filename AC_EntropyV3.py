@@ -40,10 +40,11 @@ class AttLayer(nn.Module):
         return att_value * source,  report
 
 class ValueModel(nn.Module):
-    def __init__(self, env, limit=768):
+    def __init__(self, env, limit=768, training=True):
         super(ValueModel, self).__init__()
         self.limit = limit
         self.env = env
+        self.training = training
         self.attention = AttLayer(limit=self.limit)
         self.linear1 = nn.Linear(in_features=self.limit * 2, out_features=256)
         self.linear2 = nn.Linear(in_features=256 * env.action_space.n, out_features=1)
@@ -51,16 +52,17 @@ class ValueModel(nn.Module):
     def forward(self, x):
         source, report = self.attention(x)
         x = torch.concat([source, torch.stack([report for i in range(source.shape[1])]).swapaxes(0, 1)], axis=2)
-        x = F.relu(self.linear1(x))
+        x = F.relu(F.dropout(self.linear1(x), training=self.training, p=0.2))
         x = x.flatten(1)
-        x = self.linear2(x)
+        x = F.dropout(self.linear2(x), training=self.training, p=0.2)
         return F.sigmoid(x)
 
 class PolicyModel(nn.Module):
-    def __init__(self, env, limit=768):
+    def __init__(self, env, limit=768, training=True):
         super(PolicyModel, self).__init__()
         self.limit = limit
         self.env = env
+        self.training = training
         self.attention = AttLayer(limit=self.limit)
         self.linear1 = nn.Linear(in_features=self.limit * 2, out_features=self.limit)
         self.linear2 = nn.Linear(in_features=self.limit, out_features=1)
@@ -68,8 +70,8 @@ class PolicyModel(nn.Module):
     def forward(self, x, actions):
         source, report = self.attention(x)
         x = torch.concat([source, torch.stack([report for i in range(source.shape[1])]).swapaxes(0, 1)], axis=2)
-        x = F.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = F.relu(F.dropout(self.linear1(x), training=self.training, p=0.2))
+        x = F.dropout(self.linear2(x), training=self.training, p=0.2)
         actions = actions.squeeze(1) if actions.dim() == 3 else actions
         x = softmax(x.squeeze(2), dim=1)
         x = torch.softmax(x, dim=-1) * actions
