@@ -3,14 +3,15 @@
 #SBATCH --ntasks=1               # number of MPI processes
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=12G      # memory; default unit is megabytes
-#SBATCH --time=4:20:00           # time (DD-HH:MM)
+#SBATCH --time=40:20:00           # time (DD-HH:MM)
 #SBATCH --gres=gpu:v100l:1
 #SBATCH --output=%x-%j.out
 #SBATCH --mail-user=p9chakra@uwaterloo.ca
 #SBATCH --mail-type=ALL
-export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/Evaluate_ACV3.py \
+export CUDA_LAUNCH_BLOCKING=1; python /home/partha9/CS885-RProject/AC_EntropyV3.py \
 --file_path /project/def-m2nagapp/partha9/LTR/ \
---model_path Models/AC/Entropy/JDT/JDT_AC_Entropy_V2_policy_model_237.0.pt \
---result_path /project/def-m2nagapp/partha9/LTR/Results/AC/Entropy/JDT/ \
---test_data_path Data/TestData/JDT_test.csv \
---project_name JDT
+--cache_path /scratch/partha9/.buffer_cache_ac_swt \
+--train_data_path Data/TrainData/Bench_BLDS_SWT_Dataset.csv \
+--save_path /project/def-m2nagapp/partha9/LTR/Models/AC/Entropy/SWT/ \
+--start_from 0 \
+--project_name SWT
