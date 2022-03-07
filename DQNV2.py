@@ -43,10 +43,11 @@ class AttLayer(nn.Module):
         return att_value * source,  report
 
 class DoubleDQN(nn.Module):
-    def __init__(self, env, limit=768):
+    def __init__(self, env, limit=768, training=True):
         super(DoubleDQN, self).__init__()
         self.limit = limit
         self.env = env
+        self.training = training
         self.attention = AttLayer(limit=self.limit)
         self.linear1 = nn.Linear(in_features=self.limit * 2, out_features=self.limit)
         self.linear2 = nn.Linear(in_features=self.limit, out_features=1)
@@ -54,8 +55,8 @@ class DoubleDQN(nn.Module):
     def forward(self, x):
         source, report = self.attention(x)
         x = torch.concat([source, torch.stack([report for i in range(source.shape[1])]).swapaxes(0, 1)], axis=2)
-        x = F.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = F.relu(F.dropout(self.linear1(x), p=0.2, training=self.training))
+        x = F.dropout(self.linear2(x), p=0.1, training=self.training)
         return softmax(x.squeeze(2), dim=1)
 
 
