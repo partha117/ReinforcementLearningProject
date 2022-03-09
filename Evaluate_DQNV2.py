@@ -45,7 +45,7 @@ if __name__ == "__main__":
                    use_gpu=False, caching=True, file_path=file_path, project_list=[project_name], test_env=True,
                    window_size=500)
 
-    model = DoubleDQN(env=env)
+    model = DoubleDQN(env=env, training=False)
     state_dict = torch.load(file_path + model_path, map_location="cuda:0")
     model.load_state_dict(state_dict=state_dict)
     model = model.to(dev)
