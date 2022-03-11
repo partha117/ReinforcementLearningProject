@@ -209,6 +209,7 @@ if __name__ == "__main__":
     # start_from = 0
     # dev = "cpu"
     Path(file_path).mkdir(parents=True, exist_ok=True)
+    Path(save_path).mkdir(parents=True, exist_ok=True)
     env = LTREnvV5(data_path=file_path + train_data_path, model_path="microsoft/codebert-base",
                    tokenizer_path="microsoft/codebert-base", action_space_dim=31, report_count=None, code_max_len=2048,
                    report_max_len=512,
